@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 #------------------------------------------------------------------------------------------
-# Determine if ThreadPool is built as a standalone project or included by other projects
+# Determine if Logger is built as a standalone project or included by other projects
 set(LOGGER_STANDALONE_PROJECT OFF)
 if (CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
     set(LOGGER_STANDALONE_PROJECT ON)
@@ -51,7 +51,7 @@ endif()
 #------------------------------------------------------------------------------------------
 # Offer switches for the type of the library and optional builds
 option(BUILD_LOGGER_SHARED_LIBS "Build using shared libraries" ON)
-option(BUILD_LOGGER_EXAMPLE "Build ThreadPool example" ${LOGGER_STANDALONE_PROJECT})
+option(BUILD_LOGGER_EXAMPLE "Build Logger example" ${LOGGER_STANDALONE_PROJECT})
 #------------------------------------------------------------------------------------------
 # Force colored output
 option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." OFF)
@@ -77,7 +77,7 @@ if (NOT __cpp_lib_format)
     find_package(fmt REQUIRED)
 endif()
 #------------------------------------------------------------------------------------------
-# Define the ThreadPool library target
+# Define the Logger library target
 set(LOGGER_LIBRARY_NAME "${LOGGER_PROJECT_NAME}_lib")
 # Check if the library should be built as a shared library
 if(BUILD_LOGGER_SHARED_LIBS)
@@ -97,14 +97,14 @@ if (NOT __cpp_lib_format)
     target_link_libraries(${PROJECT_NAME} PUBLIC fmt::fmt)
 endif()
 #------------------------------------------------------------------------------------------
-# Alias for ThreadPool library
+# Alias for Logger library
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 #------------------------------------------------------------------------------------------
 # Set LOGGER_LIBRARIES variable
 if(LOGGER_STANDALONE_PROJECT)
-    set(LOGGER_LIBRARIES ${PROJECT_NAME}::threadpool)
+    set(LOGGER_LIBRARIES ${PROJECT_NAME}::Logger)
 else()
-    set(LOGGER_LIBRARIES ${PROJECT_NAME}::threadpool PARENT_SCOPE)
+    set(LOGGER_LIBRARIES ${PROJECT_NAME}::Logger PARENT_SCOPE)
 endif()
 message(STATUS "LOGGER_LIBRARIES: ${LOGGER_LIBRARIES}")
 #------------------------------------------------------------------------------------------
@@ -163,7 +163,7 @@ endif()
 # Export the library targets (only if it's a standalone project)
 if(LOGGER_STANDALONE_PROJECT)
     include(GNUInstallDirs)
-    install(TARGETS ${PROJECT_NAME} EXPORT ThreadpoolTargets
+    install(TARGETS ${PROJECT_NAME} EXPORT LoggerTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -172,9 +172,9 @@ if(LOGGER_STANDALONE_PROJECT)
 
     install(DIRECTORY ${LOGGER_INCLUDE_DIR}/${LOGGER_PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-    install(EXPORT ThreadpoolTargets
-        FILE ThreadpoolTargets.cmake
-        NAMESPACE Threadpool::
+    install(EXPORT LoggerTargets
+        FILE LoggerTargets.cmake
+        NAMESPACE Logger::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${LOGGER_PROJECT_NAME}
     )
 endif()
