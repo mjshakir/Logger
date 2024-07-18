@@ -65,7 +65,7 @@ namespace Logger {
 #if __cpp_lib_format
                 std::string message = std::vformat(format, std::make_format_args(args...));
 #else
-                std::string message = fmt::format(std::string(format).c_str(), std::forward<Args>(args)...);
+                std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
                 std::string _formatted_message = format_message(level, message, now);
