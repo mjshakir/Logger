@@ -36,22 +36,22 @@ namespace Logger {
             //--------------------------
             template<typename... Args>
             void debug(std::string_view format, Args&&... args) {
-                log(LogLevel::DEBUG, format, std::forward<Args>(args)...);
+                log(LogLevel::DEBUG, std::string(format), std::forward<Args>(args)...);
             }// end void debug(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void error(std::string_view format, Args&&... args) {
-                log(LogLevel::ERROR, format, std::forward<Args>(args)...);
+                log(LogLevel::ERROR, std::string(format), std::forward<Args>(args)...);
             }// end void error(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void warning(std::string_view format, Args&&... args) {
-                log(LogLevel::WARNING, format, std::forward<Args>(args)...);
+                log(LogLevel::WARNING, std::string(format), std::forward<Args>(args)...);
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void normal(std::string_view format, Args&&... args) {
-                log(LogLevel::NORMAL, format, std::forward<Args>(args)...);
+                log(LogLevel::NORMAL, std::string(format), std::forward<Args>(args)...);
             } // end void normal(std::string_view format, Args&&... args)
             //--------------------------------------------------------------
         protected:
