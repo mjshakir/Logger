@@ -36,28 +36,28 @@ namespace Logger {
             //--------------------------
             template<typename... Args>
             void debug(std::string_view format, Args&&... args) {
-                log(LogLevel::DEBUG, std::string(format), std::forward<Args>(args)...);
+                log(LogLevel::DEBUG, format, std::forward<Args>(args)...);
             }// end void debug(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void error(std::string_view format, Args&&... args) {
-                log(LogLevel::ERROR, std::string(format), std::forward<Args>(args)...);
+                log(LogLevel::ERROR, format, std::forward<Args>(args)...);
             }// end void error(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void warning(std::string_view format, Args&&... args) {
-                log(LogLevel::WARNING, std::string(format), std::forward<Args>(args)...);
+                log(LogLevel::WARNING, format, std::forward<Args>(args)...);
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void normal(std::string_view format, Args&&... args) {
-                log(LogLevel::NORMAL, std::string(format), std::forward<Args>(args)...);
+                log(LogLevel::NORMAL, format, std::forward<Args>(args)...);
             } // end void normal(std::string_view format, Args&&... args)
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
             template<typename... Args>
-            void log(const LogLevel& level, const std::string& format, Args&&... args) {
+            void log(const LogLevel& level, std::string_view format, Args&&... args) {
                 //--------------------------
                 std::lock_guard<std::mutex> lock(m_mutex);
                 auto now = std::chrono::system_clock::now();
@@ -65,7 +65,7 @@ namespace Logger {
 #if __cpp_lib_format
                 std::string message = std::vformat(format, std::make_format_args(args...));
 #else
-                std::string message = fmt::format(format, std::forward<Args>(args)...);
+                std::string message = fmt::format(std::string(format).c_str(), std::forward<Args>(args)...);
 #endif
                 //--------------------------
                 std::string _formatted_message = format_message(level, message, now);
