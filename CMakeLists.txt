@@ -100,13 +100,13 @@ if (NOT __cpp_lib_format)
 endif()
 #------------------------------------------------------------------------------------------
 # Alias for Logger library
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_library(Logger::logger ALIAS ${PROJECT_NAME})
 #------------------------------------------------------------------------------------------
 # Set LOGGER_LIBRARIES variable
 if(LOGGER_STANDALONE_PROJECT)
-    set(LOGGER_LIBRARIES ${PROJECT_NAME}::logger)
+    set(LOGGER_LIBRARIES Logger::logger)
 else()
-    set(LOGGER_LIBRARIES ${PROJECT_NAME}::logger PARENT_SCOPE)
+    set(LOGGER_LIBRARIES Logger::logger PARENT_SCOPE)
 endif()
 message(STATUS "LOGGER_LIBRARIES: ${LOGGER_LIBRARIES}")
 #------------------------------------------------------------------------------------------
