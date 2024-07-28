@@ -45,7 +45,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
 #endif
             log_file("warning_log.txt", message);
             break;
-        case LogLevel::NORMAL:
+        case LogLevel::INFO:
 #if __cpp_lib_format
             std::print("{}\n", message);
 #else
@@ -64,7 +64,7 @@ std::string Logger::Logger::level_print(const LogLevel& level) const {
             return " [ERROR]: ";
         case LogLevel::WARNING:
             return " [WARNING]: ";
-        case LogLevel::NORMAL:
+        case LogLevel::INFO:
             return " [INFO]: ";
         default:
             return " [UNKNOWN]: ";

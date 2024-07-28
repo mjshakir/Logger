@@ -10,7 +10,7 @@
 #include <thread>
 //--------------------------------------------------------------
 void exampleLogging(void) {
-    LOG_NORMAL("This is a normal log message without variables.");
+    LOG_INFO("This is a info log message without variables.");
     LOG_WARNING("This is a warning log message with a variable: {}", 42);
     LOG_ERROR("This is an error log message with two variables: {} and {}", "variable1", 1234);
     DEBUG_PRINT("This is a debug log message with a variable: {}", 3.14159);
@@ -21,7 +21,7 @@ void measureLoggingOverhead(void) {
     auto start = std::chrono::high_resolution_clock::now();
     //--------------------------
     for (int i = 0; i < iterations; ++i) {
-        LOG_NORMAL("Logging overhead test: iteration {}", i);
+        LOG_INFO("Logging overhead test: iteration {}", i);
     } // end for(int i = 0; i < iterations; ++i)
     //--------------------------
     auto end = std::chrono::high_resolution_clock::now();

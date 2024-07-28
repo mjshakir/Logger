@@ -27,7 +27,7 @@ namespace Logger {
                 DEBUG   = 1 << 0,
                 ERROR   = 1 << 1,
                 WARNING = 1 << 2,
-                NORMAL  = 1 << 3
+                INFO    = 1 << 3
             }; // end enum class LogLevel : uint8_t
             //--------------------------------------------------------------
         public:
@@ -50,9 +50,9 @@ namespace Logger {
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void normal(std::string_view format, Args&&... args) {
-                log(LogLevel::NORMAL, format, std::forward<Args>(args)...);
-            } // end void normal(std::string_view format, Args&&... args)
+            void info(std::string_view format, Args&&... args) {
+                log(LogLevel::INFO, format, std::forward<Args>(args)...);
+            } // end void info(std::string_view format, Args&&... args)
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
@@ -101,7 +101,7 @@ namespace Logger {
 #define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg, ##__VA_ARGS__)
 #define LOG_ERROR(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
 #define LOG_WARNING(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
-#define LOG_NORMAL(msg, ...) Logger::Logger::instance().normal(msg, ##__VA_ARGS__)
+#define LOG_INFO(msg, ...) Logger::Logger::instance().info(msg, ##__VA_ARGS__)
 //--------------------------------------------------------------
 #ifdef DEBUG
     #define DEBUG_PRINT(msg, ...) LOG_DEBUG(msg, __VA_ARGS__)
