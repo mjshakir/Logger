@@ -8,12 +8,40 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <vector>
+#include <map>
+#include <unordered_map>
+#include <set>
+#include <list>
+#include <deque>
+#include <array>
+//--------------------------------------------------------------
+enum class Colors { Red, Green, Blue };
 //--------------------------------------------------------------
 void exampleLogging(void) {
-    LOG_INFO("This is a info log message without variables.");
+    LOG_INFO("This is a normal log message without variables.");
     LOG_WARNING("This is a warning log message with a variable: {}", 42);
     LOG_ERROR("This is an error log message with two variables: {} and {}", "variable1", 1234);
-    DEBUG_PRINT("This is a debug log message with a variable: {}", 3.14159);
+    LOG_DEBUG("This is a debug log message with a variable: {}", 3.14159);
+
+    // Log containers
+    std::vector<int> vec = {1, 2, 3, 4, 5};
+    LOG_INFO_STREAM("Logging vector:", vec);
+    LOG_WARNING_STREAM("Logging vector warning:", vec);
+
+    std::map<std::string, int> map = {{"one", 1}, {"two", 2}, {"three", 3}};
+    LOG_INFO_STREAM("Logging map:", map);
+    LOG_ERROR_STREAM("Logging map error:", map);
+
+    std::unordered_map<int, std::string> unordered_map = {{1, "one"}, {2, "two"}, {3, "three"}};
+    LOG_INFO_STREAM("Logging unordered_map:", unordered_map);
+
+    std::set<int> set = {10, 20, 30};
+    LOG_INFO_STREAM("Logging set:", set);
+
+    // Log enum
+    Colors color = Colors::Red;
+    LOG_INFO_STREAM("Logging enum:", color);
 } // end void exampleLogging(void)
 //--------------------------------------------------------------
 void measureLoggingOverhead(void) {
