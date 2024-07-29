@@ -6,6 +6,7 @@
 #include <mutex>
 #include <chrono>
 #include <functional>
+#include <type_traits>
 //--------------------------------------------------------------
 #if __cpp_lib_format
     #include <format>
@@ -21,6 +22,33 @@ namespace Logger {
     //--------------------------------------------------------------
     class Logger {
         //--------------------------------------------------------------
+        private:
+            //--------------------------------------------------------------
+            template <typename T, typename = void>
+            struct is_container : std::false_type {};
+            //--------------------------
+            template <typename T>
+            struct is_container<T, std::void_t<
+                decltype(std::declval<T>().begin()),
+                decltype(std::declval<T>().end()),
+                typename T::value_type
+            >> : std::true_type {};
+            //--------------------------
+            template <typename T>
+            static constexpr bool is_container_v = is_container<T>::value;
+            //--------------------------
+            template <typename T, typename = void>
+            struct is_map : std::false_type {};
+            //--------------------------
+            template <typename T>
+            struct is_map<T, std::void_t<
+                typename T::key_type,
+                typename T::mapped_type
+            >> : std::true_type {};
+            //--------------------------
+            template <typename T>
+            static constexpr bool is_map_v = is_map<T>::value;
+            //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
             enum class LogLevel : uint8_t {
@@ -53,6 +81,26 @@ namespace Logger {
             void info(std::string_view format, Args&&... args) {
                 log(LogLevel::INFO, format, std::forward<Args>(args)...);
             } // end void info(std::string_view format, Args&&... args)
+            //--------------------------
+            template<typename T>
+            void debug_stream(const std::string& message, const T& container) {
+                log_stream(LogLevel::DEBUG, message, container);
+            } // end void debug_stream(const std::string& message, const T& container)
+            //--------------------------
+            template<typename T>
+            void error_stream(const std::string& message, const T& container) {
+                log_stream(LogLevel::ERROR, message, container);
+            } // end void error_stream(const std::string& message, const T& container)
+            //--------------------------
+            template<typename T>
+            void warning_stream(const std::string& message, const T& container) {
+                log_stream(LogLevel::WARNING, message, container);
+            } // end void warning_stream(const std::string& message, const T& container)
+            //--------------------------
+            template<typename T>
+            void info_stream(const std::string& message, const T& container) {
+                log_stream(LogLevel::INFO, message, container);
+            } // end void info_stream(const std::string& message, const T& container)
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
@@ -81,6 +129,97 @@ namespace Logger {
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
             void log_file(const std::string& filename, std::string_view message) const;
+            //--------------------------
+            template<typename T>
+            void log_stream(const LogLevel& level, const std::string& message, const T& container) {
+                //--------------------------
+                std::lock_guard<std::mutex> lock(m_mutex);
+                auto now = std::chrono::system_clock::now();
+                //--------------------------
+                std::string container_str = print_container(container);
+                std::string combined_message = message + " " + container_str;
+                std::string _formatted_message = format_message(level, combined_message, now);
+                //--------------------------
+                level_message(level, _formatted_message);
+                //--------------------------
+            }// end void log_stream(LogLevel level, const std::string& message, const T& container)
+            //--------------------------
+            template<typename T>
+            std::string print_container(const T& container) const {
+                if constexpr (is_map_v<T>) {
+                    return print_map(container);
+                } else if constexpr (is_container_v<T>) {
+                    return print_general_container(container);
+                } else if constexpr (std::is_enum_v<T>) {
+                    return print_enum(container);
+                } else {
+                    return print_element(container);
+                } // end if constexpr (is_map_v<T>)
+            }// end std::string print_container(const T& container)
+            //--------------------------
+            template<typename T>
+            std::string print_map(const T& container) const {
+#if __cpp_lib_format
+                std::string result = std::format("{{");
+                for (const auto& [key, value] : container) {
+                    result += std::format("{{{}: {}}}, ", key, value);
+                } // end for(const auto& [key, value] : container)
+#else
+                std::string result = fmt::format("{{");
+                for (const auto& [key, value] : container) {
+                    result += fmt::format("{{{}: {}}}, ", key, value);
+                } // end for(const auto& [key, value] : container)
+#endif
+                //--------------------------
+                if (result.size() > 3) { // Remove trailing ", " if present
+                    result.erase(result.size() - 2, 2);
+                } // end if (result.size() > 3)
+                //--------------------------
+                result += "}";
+                //--------------------------
+                return result;
+            } // end std::string print_map(const T& container)
+            //--------------------------
+            template<typename T>
+            std::string print_general_container(const T& container) const {
+#if __cpp_lib_format
+                std::string result = std::format("[");
+                for (const auto& element : container) {
+                    result += std::format("{}, ", element);
+                } // end for(const auto& element : container)
+#else
+                std::string result = fmt::format("[");
+                for (const auto& element : container) {
+                    result += fmt::format("{}, ", element);
+                } // end for(const auto& element : container)
+#endif
+                //--------------------------
+                if (result.size() > 2) { // Remove trailing ", " if present
+                    result.erase(result.size() - 2, 2);
+                } // end if (result.size() > 2)
+                //--------------------------
+                result += "]";
+                //--------------------------
+                return result;
+            } // end std::string print_general_container(const T& container)
+            //--------------------------
+            template<typename T>
+            std::string print_enum(const T& element) const {
+#if __cpp_lib_format
+                return std::format("{}", static_cast<std::underlying_type_t<T>>(element));
+#else
+                return fmt::format("{}", static_cast<std::underlying_type_t<T>>(element));
+#endif
+            } // end std::string print_enum(const T& element)
+            //--------------------------
+            template<typename T>
+            std::string print_element(const T& element) const {
+#if __cpp_lib_format
+                return std::format("{}", element);
+#else
+                return fmt::format("{}", element);
+#endif
+            }
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
@@ -98,14 +237,19 @@ namespace Logger {
     //--------------------------------------------------------------
 } // end namespace Logger
 //--------------------------------------------------------------
-#define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg, ##__VA_ARGS__)
 #define LOG_ERROR(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
 #define LOG_WARNING(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
 #define LOG_INFO(msg, ...) Logger::Logger::instance().info(msg, ##__VA_ARGS__)
 //--------------------------------------------------------------
+#define LOG_ERROR_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
+#define LOG_WARNING_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
+#define LOG_INFO_STREAM(msg, container) Logger::Logger::instance().info_stream(msg, container)
+//--------------------------------------------------------------
 #ifdef DEBUG
-    #define DEBUG_PRINT(msg, ...) LOG_DEBUG(msg, __VA_ARGS__)
+    #define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg, ##__VA_ARGS__)
+    #define LOG_DEBUG_STREAM(msg, container) Logger::Logger::instance().debugStream(msg, container)
 #else
-    #define DEBUG_PRINT(msg, ...) 
+    #define LOG_DEBUG(msg, ...)
+    #define LOG_DEBUG_STREAM(msg, container)
 #endif
 //--------------------------------------------------------------
