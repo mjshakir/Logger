@@ -55,7 +55,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
     } // end switch(level)
 }// end void Logger::Logger::level_message(LogLevel level, std::string_view message)
 //--------------------------------------------------------------
-std::string Logger::Logger::level_print(const LogLevel& level) const {
+constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) const {
     //--------------------------
     switch (level) {
         case LogLevel::DEBUG:

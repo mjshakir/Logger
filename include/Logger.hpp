@@ -124,7 +124,7 @@ namespace Logger {
             //--------------------------
             void level_message(const LogLevel& level, std::string_view message) const;
             //--------------------------
-            std::string level_print(const LogLevel& level) const;
+            constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
