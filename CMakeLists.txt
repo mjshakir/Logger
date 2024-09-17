@@ -53,7 +53,16 @@ endif()
 #------------------------------------------------------------------------------------------
 # Offer switches for the type of the library and optional builds
 option(BUILD_LOGGER_SHARED_LIBS "Build using shared libraries" ON)
+message(STATUS "BUILD_LOGGER_SHARED_LIBS: ${BUILD_LOGGER_SHARED_LIBS}")
+#---------------------------------------
 option(BUILD_LOGGER_EXAMPLE "Build Logger example" ${LOGGER_STANDALONE_PROJECT})
+#---------------------------------------
+option(LOGGER_DEBUG "Enable Logger debug messages" OFF)
+# Automatically enable LOGGER_DEBUG if the build type is Debug
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(LOGGER_DEBUG ON CACHE BOOL "Enable Logger debug messages" FORCE)
+endif()
+message(STATUS "LOGGER_DEBUG: ${LOGGER_DEBUG}")
 #------------------------------------------------------------------------------------------
 # Force colored output
 option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." OFF)
@@ -147,6 +156,13 @@ else()
             ${SANITIZE_FLAGS}
         )
         target_link_options(${PROJECT_NAME} PRIVATE ${SANITIZE_FLAGS})
+    endif()
+endif()
+#------------------------------------------------------------------------------------------
+if(LOGGER_DEBUG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE LOGGER_DEBUG)
+    if(BUILD_LOGGER_EXAMPLE)
+        target_compile_definitions(${LOGGER_EXAMPLE_NAME} PRIVATE LOGGER_DEBUG)
     endif()
 endif()
 #------------------------------------------------------------------------------------------
