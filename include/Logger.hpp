@@ -7,6 +7,7 @@
 #include <chrono>
 #include <functional>
 #include <type_traits>
+#include <mutex>
 //--------------------------------------------------------------
 #if __cpp_lib_format
     #include <format>
@@ -235,19 +236,78 @@ namespace Logger {
     //--------------------------------------------------------------
 } // end namespace Logger
 //--------------------------------------------------------------
+// Existing logging macros
+//--------------------------------------------------------------
 #define LOG_ERROR(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
 #define LOG_WARNING(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
 #define LOG_INFO(msg, ...) Logger::Logger::instance().info(msg, ##__VA_ARGS__)
-//--------------------------------------------------------------
 #define LOG_ERROR_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
 #define LOG_WARNING_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
 #define LOG_INFO_STREAM(msg, container) Logger::Logger::instance().info_stream(msg, container)
+
 //--------------------------------------------------------------
-#ifdef DEBUG
+// **Helper macros for unique variable names using __LINE__**
+//--------------------------------------------------------------
+#define CONCATENATE_DETAIL(x, y) x##y
+#define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
+#define UNIQUE_VAR(base) CONCATENATE(base, __LINE__)
+
+//--------------------------------------------------------------
+// **Logging macros for conditional logging with DEBUG**
+//--------------------------------------------------------------
+#ifdef LOGGER_DEBUG
     #define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg, ##__VA_ARGS__)
-    #define LOG_DEBUG_STREAM(msg, container) Logger::Logger::instance().debugStream(msg, container)
+    #define LOG_DEBUG_STREAM(msg, container) Logger::Logger::instance().debug_stream(msg, container)
+    //--------------------------
+    // **Newly added macros**
+    #define LOG_WARNING_DEBUG(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
+    #define LOG_WARNING_DEBUG_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
+    //--------------------------
+    #define LOG_ERROR_DEBUG(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
+    #define LOG_ERROR_DEBUG_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
 #else
     #define LOG_DEBUG(msg, ...)
     #define LOG_DEBUG_STREAM(msg, container)
+    //--------------------------
+    // **Ensure macros do nothing when DEBUG is not defined**
+    #define LOG_WARNING_DEBUG(msg, ...)
+    #define LOG_WARNING_DEBUG_STREAM(msg, container)
+    //--------------------------
+    #define LOG_ERROR_DEBUG(msg, ...)
+    #define LOG_ERROR_DEBUG_STREAM(msg, container)
+#endif
+
+//--------------------------------------------------------------
+// **Logging macros for logging messages only once**
+//--------------------------------------------------------------
+#define LOG_ONCE(level_method, msg, ...) do { \
+    static std::once_flag UNIQUE_VAR(log_once_flag_); \
+    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
+        Logger::Logger::instance().level_method(msg, ##__VA_ARGS__); \
+    }); \
+} while(0)
+
+#define LOG_ONCE_STREAM(level_method, msg, container) do { \
+    static std::once_flag UNIQUE_VAR(log_once_flag_); \
+    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
+        Logger::Logger::instance().level_method##_stream(msg, container); \
+    }); \
+} while(0)
+
+// **Define macros for each log level**
+#define LOG_ERROR_ONCE(msg, ...) LOG_ONCE(error, msg, ##__VA_ARGS__)
+#define LOG_WARNING_ONCE(msg, ...) LOG_ONCE(warning, msg, ##__VA_ARGS__)
+#define LOG_INFO_ONCE(msg, ...) LOG_ONCE(info, msg, ##__VA_ARGS__)
+
+#define LOG_ERROR_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(error, msg, container)
+#define LOG_WARNING_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(warning, msg, container)
+#define LOG_INFO_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(info, msg, container)
+
+#ifdef LOGGER_DEBUG
+    #define LOG_DEBUG_ONCE(msg, ...) LOG_ONCE(debug, msg, ##__VA_ARGS__)
+    #define LOG_DEBUG_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(debug, msg, container)
+#else
+    #define LOG_DEBUG_ONCE(msg, ...)
+    #define LOG_DEBUG_ONCE_STREAM(msg, container)
 #endif
 //--------------------------------------------------------------
