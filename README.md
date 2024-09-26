@@ -84,7 +84,7 @@ include_directories(${LOGGER_INCLUDE_DIR})
 add_executable(MyProject main.cpp)
 
 # Link the Logger library
-target_link_libraries(MyProject PRIVATE Logger)
+target_link_libraries(MyProject PRIVATE ${LOGGER_LIBRARIES})
 ```
 
 3. **Configuring Logger Build Options**
