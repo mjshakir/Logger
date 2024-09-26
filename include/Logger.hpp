@@ -48,8 +48,6 @@ namespace Logger {
             template <typename T>
             static constexpr bool is_map_v = is_map<T>::value;
             //--------------------------------------------------------------
-        protected:
-            //--------------------------------------------------------------
             enum class LogLevel : uint8_t {
                 DEBUG   = 1 << 0,
                 ERROR   = 1 << 1,
@@ -82,24 +80,24 @@ namespace Logger {
             } // end void info(std::string_view format, Args&&... args)
             //--------------------------
             template<typename T>
-            void debug_stream(const std::string& message, const T& container) {
+            void debug_stream(std::string_view message, const T& container) {
                 log_stream(LogLevel::DEBUG, message, container);
-            } // end void debug_stream(const std::string& message, const T& container)
+            } // end void debug_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void error_stream(const std::string& message, const T& container) {
+            void error_stream(std::string_view message, const T& container) {
                 log_stream(LogLevel::ERROR, message, container);
-            } // end void error_stream(const std::string& message, const T& container)
+            } // end void error_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void warning_stream(const std::string& message, const T& container) {
+            void warning_stream(std::string_view message, const T& container) {
                 log_stream(LogLevel::WARNING, message, container);
-            } // end void warning_stream(const std::string& message, const T& container)
+            } // end void warning_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void info_stream(const std::string& message, const T& container) {
+            void info_stream(std::string_view message, const T& container) {
                 log_stream(LogLevel::INFO, message, container);
-            } // end void info_stream(const std::string& message, const T& container)
+            } // end void info_stream(std::string_view message, const T& container)
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
@@ -107,12 +105,13 @@ namespace Logger {
             void log(const LogLevel& level, std::string_view format, Args&&... args) {
                 //--------------------------
                 std::lock_guard<std::mutex> lock(m_mutex);
-                auto now = std::chrono::system_clock::now();
+                //--------------------------
+                const auto now = std::chrono::system_clock::now();
                 //--------------------------
 #if __cpp_lib_format
-                std::string message = std::vformat(format, std::make_format_args(args...));
+                const std::string message = std::vformat(format, std::make_format_args(args...));
 #else
-                std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
+                const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
                 std::string _formatted_message = format_message(level, message, now);
@@ -130,18 +129,19 @@ namespace Logger {
             void log_file(const std::string& filename, std::string_view message) const;
             //--------------------------
             template<typename T>
-            void log_stream(const LogLevel& level, const std::string& message, const T& container) {
+            void log_stream(const LogLevel& level, std::string_view message, const T& container) {
                 //--------------------------
                 std::lock_guard<std::mutex> lock(m_mutex);
-                auto now = std::chrono::system_clock::now();
                 //--------------------------
-                std::string container_str = print_container(container);
-                std::string combined_message = message + " " + container_str;
-                std::string _formatted_message = format_message(level, combined_message, now);
+                const auto now = std::chrono::system_clock::now();
+                //--------------------------
+                const std::string container_str       = print_container(container);
+                const std::string combined_message    = std::string(message) + " " + container_str;
+                const std::string _formatted_message  = format_message(level, combined_message, now);
                 //--------------------------
                 level_message(level, _formatted_message);
                 //--------------------------
-            }// end void log_stream(LogLevel level, const std::string& message, const T& container)
+            }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
             std::string print_container(const T& container) const {
@@ -244,7 +244,6 @@ namespace Logger {
 #define LOG_ERROR_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
 #define LOG_WARNING_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
 #define LOG_INFO_STREAM(msg, container) Logger::Logger::instance().info_stream(msg, container)
-
 //--------------------------------------------------------------
 // **Helper macros for unique variable names using __LINE__**
 //--------------------------------------------------------------

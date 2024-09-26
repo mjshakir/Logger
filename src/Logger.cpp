@@ -74,7 +74,7 @@ constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) co
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    auto localtime = std::chrono::system_clock::to_time_t(now);
+    const auto localtime = std::chrono::system_clock::to_time_t(now);
     std::ostringstream oss;
     //--------------------------
 #if __cpp_lib_format
@@ -89,7 +89,7 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
     return oss.str();
     //--------------------------
-}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now)
+}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
 void Logger::Logger::log_file(const std::string& filename, std::string_view message) const {
     //--------------------------
@@ -98,8 +98,8 @@ void Logger::Logger::log_file(const std::string& filename, std::string_view mess
     if (_log_file.is_open()) {
         if (!_log_file.tellp()) { // Check if the file is empty
             //--------------------------
-            const auto now = std::chrono::system_clock::now();
-            const auto localtime = std::chrono::system_clock::to_time_t(now);
+            const auto now          = std::chrono::system_clock::now();
+            const auto localtime    = std::chrono::system_clock::to_time_t(now);
             //--------------------------
 #if __cpp_lib_format
             _log_file << std::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", *std::localtime(&localtime));
@@ -112,5 +112,5 @@ void Logger::Logger::log_file(const std::string& filename, std::string_view mess
         //--------------------------
     }// end if (_log_file.is_open())
     //--------------------------
-}// end void log_file(const std::string& filename, std::string_view message)
+}// end void log_file(const std::string& filename, std::string_view message) const
 //--------------------------------------------------------------
