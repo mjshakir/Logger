@@ -48,8 +48,6 @@ namespace Logger {
             template <typename T>
             static constexpr bool is_map_v = is_map<T>::value;
             //--------------------------------------------------------------
-        protected:
-            //--------------------------------------------------------------
             enum class LogLevel : uint8_t {
                 DEBUG   = 1 << 0,
                 ERROR   = 1 << 1,
@@ -107,12 +105,13 @@ namespace Logger {
             void log(const LogLevel& level, std::string_view format, Args&&... args) {
                 //--------------------------
                 std::lock_guard<std::mutex> lock(m_mutex);
-                auto now = std::chrono::system_clock::now();
+                //--------------------------
+                const auto now = std::chrono::system_clock::now();
                 //--------------------------
 #if __cpp_lib_format
-                std::string message = std::vformat(format, std::make_format_args(args...));
+                const std::string message = std::vformat(format, std::make_format_args(args...));
 #else
-                std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
+                const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
                 std::string _formatted_message = format_message(level, message, now);
@@ -133,11 +132,12 @@ namespace Logger {
             void log_stream(const LogLevel& level, std::string_view message, const T& container) {
                 //--------------------------
                 std::lock_guard<std::mutex> lock(m_mutex);
-                auto now = std::chrono::system_clock::now();
                 //--------------------------
-                std::string container_str       = print_container(container);
-                std::string combined_message    = std::string(message) + " " + container_str;
-                std::string _formatted_message  = format_message(level, combined_message, now);
+                const auto now = std::chrono::system_clock::now();
+                //--------------------------
+                const std::string container_str       = print_container(container);
+                const std::string combined_message    = std::string(message) + " " + container_str;
+                const std::string _formatted_message  = format_message(level, combined_message, now);
                 //--------------------------
                 level_message(level, _formatted_message);
                 //--------------------------
