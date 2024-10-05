@@ -250,7 +250,6 @@ namespace Logger {
 #define CONCATENATE_DETAIL(x, y) x##y
 #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
 #define UNIQUE_VAR(base) CONCATENATE(base, __LINE__)
-
 //--------------------------------------------------------------
 // **Logging macros for conditional logging with DEBUG**
 //--------------------------------------------------------------
