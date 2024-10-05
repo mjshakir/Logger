@@ -12,6 +12,14 @@
 #include <iomanip>
 #include <ctime>
 //--------------------------------------------------------------
+// Definitions
+//--------------------------------------------------------------
+#if __cpp_lib_format
+    #define ANSI_COLOR_RED              "\x1b[31m"
+    #define ANSI_COLOR_YELLOW           "\x1b[33m"
+    #define ANSI_COLOR_RESET            "\x1b[0m"
+#endif 
+//--------------------------------------------------------------
 Logger::Logger& Logger::Logger::instance(void) {
     static Logger instance;
     return instance;
@@ -31,7 +39,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
             break;
         case LogLevel::ERROR:
 #if __cpp_lib_format
-            std::print("\033[31m{}\033[0m\n", message);
+            std::print(ANSI_COLOR_RED "{}" ANSI_COLOR_RESET "\n", message);
 #else
             fmt::print(fmt::fg(fmt::color::red), "{}\n", message);
 #endif
@@ -39,7 +47,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
             break;
         case LogLevel::WARNING:
 #if __cpp_lib_format
-            std::print("\033[33m{}\033[0m\n", message);
+            std::print(ANSI_COLOR_YELLOW "{}" ANSI_COLOR_RESET "\n", message);
 #else
             fmt::print(fmt::fg(fmt::color::yellow), "{}\n", message);
 #endif
