@@ -5,12 +5,16 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
+// #include <iostream>
+#include <chrono>
 #include <fstream>
 #include <sstream>
-#include <string>
-#include <string_view>
 #include <iomanip>
 #include <ctime>
+#if !__cpp_lib_format
+    #include <fmt/chrono.h>
+    #include <fmt/color.h>
+#endif
 //--------------------------------------------------------------
 // Definitions
 //--------------------------------------------------------------
@@ -99,6 +103,27 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
+std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const {
+    //--------------------------
+    const auto localtime = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream oss;
+    //--------------------------
+#if __cpp_lib_format
+    oss << std::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&localtime));
+#else
+    oss << fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(localtime));
+#endif
+    //--------------------------
+    oss << level_print(level);
+    //--------------------------
+    oss << "[" << format_function_name(function_name) << "]: ";  // **Fix: Include formatted function name properly**
+    //--------------------------
+    oss << message;  // **Fix: Append the actual log message**
+    //--------------------------
+    return oss.str();
+    //--------------------------
+}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
+//--------------------------------------------------------------
 void Logger::Logger::log_file(const std::string& filename, std::string_view message) const {
     //--------------------------
     std::ofstream _log_file(filename, std::ios_base::app);
@@ -121,4 +146,12 @@ void Logger::Logger::log_file(const std::string& filename, std::string_view mess
     }// end if (_log_file.is_open())
     //--------------------------
 }// end void log_file(const std::string& filename, std::string_view message) const
+//--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::format_function_name(std::string_view function_name) const {
+    //--------------------------
+    // Find the last "::" occurrence and return only the function name
+    const size_t pos = function_name.rfind("::");
+    return (pos != std::string_view::npos) ? function_name.substr(pos + 2) : function_name;
+    //--------------------------
+}// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
 //--------------------------------------------------------------
