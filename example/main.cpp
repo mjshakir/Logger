@@ -16,11 +16,18 @@
 #include <deque>
 #include <array>
 //--------------------------------------------------------------
-
 // // **Define DEBUG to enable debug logging**
 // #define DEBUG
-
 enum class Colors { Red, Green, Blue };
+//--------------------------------------------------------------
+void nestedFunction() {
+    LOG_INFO_FUNCTION("Logging inside nestedFunction.");
+}
+//--------------------------
+void deeperNestedFunction() {
+    nestedFunction();
+    LOG_WARNING_FUNCTION("Logging inside deeperNestedFunction.");
+}
 //--------------------------------------------------------------
 void exampleLogging(void) {
     LOG_INFO("This is a normal log message without variables.");
@@ -28,13 +35,26 @@ void exampleLogging(void) {
     LOG_ERROR("This is an error log message with two variables: {} and {}", "variable1", 1234);
     LOG_DEBUG("This is a debug log message with a variable: {}", 3.14159);
 
-    // Log containers
+    LOG_INFO_FUNCTION("This is a normal log message with function name and no variables.");
+    LOG_WARNING_FUNCTION("This is a warning log message with function name and a variable: {}", 42);
+    LOG_ERROR_FUNCTION("This is an error log message with function name and two variables: {} and {}", "variable1", 1234);
+    LOG_DEBUG_FUNCTION("This is a debug log message with function name and a variable: {}", 3.14159);
+
+    deeperNestedFunction();  // Calls deeperNestedFunction -> nestedFunction
+
+    // Lambda Function Test
+    auto lambdaTest = [] {LOG_ERROR_FUNCTION("Logging inside lambda function.");};
+    lambdaTest();
+
+    // **Log containers**
     std::vector<int> vec = {1, 2, 3, 4, 5};
     LOG_INFO_STREAM("Logging vector:", vec);
+    LOG_INFO_FUNCTION_STREAM("Logging vector with function name:", vec);
     LOG_WARNING_STREAM("Logging vector warning:", vec);
 
     std::map<std::string, int> map = {{"one", 1}, {"two", 2}, {"three", 3}};
     LOG_INFO_STREAM("Logging map:", map);
+    LOG_WARNING_FUNCTION_STREAM("Logging map warning:", map);
     LOG_ERROR_STREAM("Logging map error:", map);
 
     std::unordered_map<int, std::string> unordered_map = {{1, "one"}, {2, "two"}, {3, "three"}};
@@ -43,23 +63,9 @@ void exampleLogging(void) {
     std::set<int> set = {10, 20, 30};
     LOG_INFO_STREAM("Logging set:", set);
 
-    // Log enum
+    // **Log enum**
     Colors color = Colors::Red;
     LOG_INFO_STREAM("Logging enum:", color);
-
-    // **Testing new functions**
-
-    // **Conditional logging with LOG_WARNING_DEBUG**
-    LOG_WARNING_DEBUG("This is a warning debug message with variable: {}", 99);
-
-    // **Conditional logging with LOG_ERROR_DEBUG**
-    LOG_ERROR_DEBUG("This is an error debug message with variable: {}", "debug_error");
-
-    // **Conditional logging of containers with LOG_WARNING_DEBUG_STREAM**
-    LOG_WARNING_DEBUG_STREAM("Logging vector in debug warning:", vec);
-
-    // **Conditional logging of containers with LOG_ERROR_DEBUG_STREAM**
-    LOG_ERROR_DEBUG_STREAM("Logging map in debug error:", map);
 
     // **Testing the *_ONCE macros**
     for (int i = 0; i < 5; ++i) {
@@ -88,6 +94,7 @@ void measureLoggingOverhead(void) {
     //--------------------------
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> duration = end - start;
+
     std::cout << "Total time taken for " << iterations << " logging operations: " 
               << duration.count() << " microseconds\n";
     std::cout << "Average time per logging operation: " 
@@ -105,6 +112,7 @@ void measureLoggingOverheadWarning(void) {
     //--------------------------
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> duration = end - start;
+
     std::cout << "Total time taken for " << iterations << " logging operations: " 
               << duration.count() << " microseconds\n";
     std::cout << "Average time per logging operation: " 
@@ -122,6 +130,7 @@ void measureLoggingOverheadOnce(void) {
     //--------------------------
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::micro> duration = end - start;
+
     std::cout << "Total time taken for " << iterations << " LOG_INFO_ONCE operations: " 
               << duration.count() << " microseconds\n";
     std::cout << "Average time per LOG_INFO_ONCE operation: " 
@@ -137,11 +146,11 @@ int main(void) {
     //--------------------------
     // Measure the logging overhead
     //--------------------------
-    measureLoggingOverhead();
-    //--------------------------
-    measureLoggingOverheadWarning();
-    //--------------------------
-    measureLoggingOverheadOnce();
+    // measureLoggingOverhead();
+    // //--------------------------
+    // measureLoggingOverheadWarning();
+    // //--------------------------
+    // measureLoggingOverheadOnce();
     //--------------------------
     return 0;
     //--------------------------
