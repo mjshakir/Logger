@@ -13,6 +13,7 @@
 #if !__cpp_lib_format
     #include <fmt/chrono.h>
     #include <fmt/color.h>
+    #include <fmt/compile.h>
 #endif
 //--------------------------------------------------------------
 // Definitions
@@ -88,11 +89,9 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     const auto _localtime = std::chrono::system_clock::to_time_t(now);
     //--------------------------
 #if __cpp_lib_format
-    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}", *std::localtime(&_localtime), 
-                        level_print(level), message);
+    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}", *std::localtime(&_localtime), level_print(level), message);
 #else
-    return fmt::format("{:%Y-%m-%d %H:%M:%S}{}{}", fmt::localtime(_localtime), 
-                        level_print(level), message);
+    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}{}"), fmt::localtime(_localtime), level_print(level), message);
 #endif
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
@@ -102,10 +101,10 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     const auto _localtime = std::chrono::system_clock::to_time_t(now);
     //--------------------------
 #if __cpp_lib_format
-    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}: {}", *std::localtime(&_localtime), 
+    return std::format("{:%Y-%m-%d %H:%M:%S}{} [{}]: {}", *std::localtime(&_localtime), 
                         level_print(level), format_function_name(function_name), message);
 #else
-    return fmt::format("{:%Y-%m-%d %H:%M:%S}{}{}: {}", fmt::localtime(_localtime), 
+    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}[{}]: {}"), fmt::localtime(_localtime), 
                         level_print(level), format_function_name(function_name), message);
 #endif
     //--------------------------
