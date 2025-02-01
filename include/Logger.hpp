@@ -12,6 +12,7 @@
     #include <format>
 #else
     #include <fmt/core.h>
+    #include <fmt/format.h>
 #endif
 //--------------------------------------------------------------
 namespace Logger {
@@ -199,10 +200,10 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                std::ostringstream _oss;
-                _oss << message << " " << print_container(container);
+                fmt::memory_buffer buffer;
+                fmt::format_to(std::back_inserter(buffer), "{} {}", message, print_container(container));
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, _oss.rdbuf()->view(), now);
+                const std::string _formatted_message  = format_message(level, std::string_view(buffer.data(), buffer.size()) , now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -216,10 +217,10 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                std::ostringstream _oss;
-                _oss << message << " " << print_container(container);
+                fmt::memory_buffer buffer;
+                fmt::format_to(std::back_inserter(buffer), "{} {}", message, print_container(container));
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, _oss.rdbuf()->view(), now);
+                const std::string _formatted_message  = format_message(level, function_name, std::string_view(buffer.data(), buffer.size()), now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
