@@ -7,6 +7,9 @@
 #include <sstream>
 #include <mutex>
 #include <type_traits>
+#include <optional>
+//--------------------------------------------------------------
+// Format library
 //--------------------------------------------------------------
 #if __cpp_lib_format
     #include <format>
@@ -158,7 +161,7 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, std::move(_formatted_message));
+                    level_message(level, std::move(_formatted_message), now);
                 } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
@@ -178,12 +181,12 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, std::move(_formatted_message));
+                    level_message(level, std::move(_formatted_message), now);
                 } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
             //--------------------------
-            void level_message(const LogLevel& level, std::string_view message) const;
+            void level_message(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
@@ -191,7 +194,7 @@ namespace Logger {
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
-            void log_file(const std::string& filename, std::string_view message) const;
+            void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
             constexpr std::string_view format_function_name(std::string_view function_name) const;
             //--------------------------
@@ -207,7 +210,7 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, std::move(_formatted_message));
+                    level_message(level, std::move(_formatted_message), now);
                 } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
@@ -224,7 +227,7 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, std::move(_formatted_message));
+                    level_message(level, std::move(_formatted_message), now);
                 } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
@@ -305,6 +308,12 @@ namespace Logger {
                 return fmt::format("{}", element);
 #endif
             }// end std::string print_element(const T& element)
+            //--------------------------
+            // helper function to get the current time
+            //--------------------------
+            void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            void logs(std::string_view log_name, std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------

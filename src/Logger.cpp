@@ -5,15 +5,27 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-// #include <iostream>
+#include <array>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <ctime>
+//--------------------------------------------------------------
+// Format library
+//--------------------------------------------------------------
+#if __cpp_lib_print
+    #include <print>
+#endif
 #if !__cpp_lib_format
     #include <fmt/chrono.h>
     #include <fmt/color.h>
     #include <fmt/compile.h>
+#endif
+//--------------------------------------------------------------
+// User Defined library
+//--------------------------------------------------------------
+#if HAS_LOGGER_SQL == 1
+    #include "SQLogger.hpp"
 #endif
 //--------------------------------------------------------------
 // Definitions
@@ -29,13 +41,13 @@ Logger::Logger& Logger::Logger::instance(void) {
     return instance;
 } // end Logger& Logger::instance(void)
 //--------------------------------------------------------------
-void Logger::Logger::level_message(const LogLevel& level, std::string_view message) const {
+void Logger::Logger::level_message(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     switch (level) {
         case LogLevel::DEBUG:
 #ifdef DEBUG
 #if __cpp_lib_format
-            std::print("{}\n", message);
+            std::println("{}", message);
 #else
             fmt::print("{}\n", message);
 #endif
@@ -43,23 +55,23 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
             break;
         case LogLevel::ERROR:
 #if __cpp_lib_format
-            std::print(ANSI_COLOR_RED "{}" ANSI_COLOR_RESET "\n", message);
+            std::println(ANSI_COLOR_RED "{}" ANSI_COLOR_RESET, message);
 #else
             fmt::print(fmt::fg(fmt::color::red), "{}\n", message);
 #endif
-            log_file("error_log.txt", message);
+            logs("error_log.txt", level_print(LogLevel::ERROR), message, now);
             break;
         case LogLevel::WARNING:
 #if __cpp_lib_format
-            std::print(ANSI_COLOR_YELLOW "{}" ANSI_COLOR_RESET "\n", message);
+            std::println(ANSI_COLOR_YELLOW "{}" ANSI_COLOR_RESET, message);
 #else
             fmt::print(fmt::fg(fmt::color::yellow), "{}\n", message);
 #endif
-            log_file("warning_log.txt", message);
+            logs("warning_log.txt", level_print(LogLevel::WARNING), message, now);
             break;
         case LogLevel::INFO:
 #if __cpp_lib_format
-            std::print("{}\n", message);
+            std::println("{}", message);
 #else
             fmt::print("{}\n", message);
 #endif
@@ -86,45 +98,49 @@ constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) co
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    const auto _localtime = std::chrono::system_clock::to_time_t(now);
+    std::tm _timeinfo;
+    get_time(&_timeinfo, now);
     //--------------------------
 #if __cpp_lib_format
-    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}", *std::localtime(&_localtime), level_print(level), message);
+    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}", _timeinfo, level_print(level), message);
 #else
-    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}{}"), fmt::localtime(_localtime), level_print(level), message);
+    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}{}"), _timeinfo, level_print(level), message);
 #endif
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    const auto _localtime = std::chrono::system_clock::to_time_t(now);
+    std::tm _timeinfo;
+    get_time(&_timeinfo, now);
     //--------------------------
 #if __cpp_lib_format
-    return std::format("{:%Y-%m-%d %H:%M:%S}{} [{}]: {}", *std::localtime(&_localtime), 
+    return std::format("{:%Y-%m-%d %H:%M:%S}{} [{}]: {}", _timeinfo, 
                         level_print(level), format_function_name(function_name), message);
 #else
-    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}[{}]: {}"), fmt::localtime(_localtime), 
+    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}[{}]: {}"), _timeinfo, 
                         level_print(level), format_function_name(function_name), message);
 #endif
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
-void Logger::Logger::log_file(const std::string& filename, std::string_view message) const {
+void Logger::Logger::log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
-    std::ofstream _log_file(filename, std::ios_base::app);
+    std::ofstream _log_file(filename.data(), std::ios_base::app);
     //--------------------------
     if (_log_file.is_open()) {
         if (!_log_file.tellp()) { // Check if the file is empty
             //--------------------------
-            const auto now          = std::chrono::system_clock::now();
-            const auto localtime    = std::chrono::system_clock::to_time_t(now);
-            //--------------------------
+            if (now.has_value()) { // Only format time if provided
+                const auto _localtime = std::chrono::system_clock::to_time_t(now.value());
+                std::tm _timeinfo;
+                localtime_r(&_localtime, &_timeinfo);
 #if __cpp_lib_format
-            _log_file << std::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", *std::localtime(&localtime));
+                _log_file << std::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
 #else
-            _log_file << fmt::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", fmt::localtime(localtime));
+                _log_file << fmt::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
 #endif
+            }// end if (now)
         } // end if (!_log_file.tellp())
         //--------------------------
         _log_file << message << std::endl;
@@ -140,4 +156,30 @@ constexpr std::string_view Logger::Logger::format_function_name(std::string_view
     return (pos != std::string_view::npos) ? function_name.substr(pos + 2) : function_name;
     //--------------------------
 }// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
+//--------------------------------------------------------------
+void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const {
+    //--------------------------
+    const std::time_t _localtime = (!now.has_value()) ?  std::time(nullptr) : std::chrono::system_clock::to_time_t(now.value());
+    //--------------------------
+#if defined(_WIN32)
+        localtime_s(timeinfo, &_localtime);
+#else
+        localtime_r(&_localtime, timeinfo);
+#endif  
+    //--------------------------
+}// end void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const
+//--------------------------------------------------------------
+void Logger::Logger::logs(std::string_view log_name, std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
+    //--------------------------
+#if HAS_LOGGER_SQL == 1
+    static SQLogger& s_sq_logger = SQLogger::instance();
+    //--------------------------
+    if(!s_sq_logger.log(message, now)) {
+        log_file(log_name, message, now);
+    }// end if(!s_sq_logger.log(message, now))
+    //--------------------------
+#else
+    log_file(log_name, message, now);
+#endif
+}// end void Logger::Logger::logs(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
