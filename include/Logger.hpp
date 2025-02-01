@@ -4,6 +4,7 @@
 //--------------------------------------------------------------
 #include <cstddef>
 #include <string_view>
+#include <sstream>
 #include <mutex>
 #include <type_traits>
 //--------------------------------------------------------------
@@ -144,8 +145,6 @@ namespace Logger {
             template<typename... Args>
             void log(const LogLevel& level, std::string_view format, Args&&... args) {
                 //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
-                //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
 #if __cpp_lib_format
@@ -156,14 +155,15 @@ namespace Logger {
                 //--------------------------
                 std::string _formatted_message = format_message(level, message, now);
                 //--------------------------
-                level_message(level, _formatted_message);
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message));
+                } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
             void log(const LogLevel& level, std::string_view function_name, std::string_view format, Args&&... args) {
-                //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
@@ -173,9 +173,12 @@ namespace Logger {
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
-                std::string full_message = format_message(level, function_name, message, now);
+                std::string _formatted_message = format_message(level, function_name, message, now);
                 //--------------------------
-                level_message(level, full_message);
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message));
+                } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
             //--------------------------
@@ -194,30 +197,34 @@ namespace Logger {
             template<typename T>
             void log_stream(const LogLevel& level, std::string_view message, const T& container) {
                 //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
-                //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                const std::string container_str       = print_container(container);
-                const std::string combined_message    = std::string(message) + " " + container_str;
-                const std::string _formatted_message  = format_message(level, combined_message, now);
+                std::ostringstream _oss;
+                _oss << message << " " << print_container(container);
                 //--------------------------
-                level_message(level, _formatted_message);
+                const std::string _formatted_message  = format_message(level, _oss.rdbuf()->view(), now);
+                //--------------------------
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message));
+                } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
             void log_stream(const LogLevel& level, std::string_view function_name, std::string_view message, const T& container) {
                 //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
-                //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                const std::string container_str       = print_container(container);
-                const std::string combined_message    = std::string(message) + " " + container_str;
-                const std::string _formatted_message  = format_message(level, function_name, combined_message, now);
+                std::ostringstream _oss;
+                _oss << message << " " << print_container(container);
                 //--------------------------
-                level_message(level, _formatted_message);
+                const std::string _formatted_message  = format_message(level, function_name, _oss.rdbuf()->view(), now);
+                //--------------------------
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message));
+                } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
@@ -296,7 +303,7 @@ namespace Logger {
 #else
                 return fmt::format("{}", element);
 #endif
-            }
+            }// end std::string print_element(const T& element)
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
