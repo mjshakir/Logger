@@ -6,6 +6,7 @@
 // Standard cpp library
 //--------------------------------------------------------------
 #include <iostream>
+#include <cstddef>
 #include <chrono>
 #include <thread>
 #include <vector>
@@ -15,6 +16,15 @@
 #include <list>
 #include <deque>
 #include <array>
+//--------------------------------------------------------------
+template<size_t N>
+constexpr std::array<size_t, N> createArray(void) {
+    std::array<size_t, N> arr;
+    for(size_t i = 0; i < N; ++i) {
+        arr[i] = i;
+    } // end for(size_t i = 0; i < size; ++i)
+    return arr;
+}// end std::array<size_t, N> createArray(void)
 //--------------------------------------------------------------
 // // **Define DEBUG to enable debug logging**
 // #define DEBUG
@@ -85,7 +95,7 @@ void exampleLogging(void) {
 } // end void exampleLogging(void)
 //--------------------------------------------------------------
 void measureLoggingOverhead(void) {
-    const int iterations = 1000;
+    constexpr int iterations = 1000;
     auto start = std::chrono::high_resolution_clock::now();
     //--------------------------
     for (int i = 0; i < iterations; ++i) {
@@ -102,8 +112,24 @@ void measureLoggingOverhead(void) {
     //--------------------------
 } // end void measureLoggingOverhead(void)
 //--------------------------------------------------------------
+void measureLoggingStreamOverhead(void) {
+    constexpr size_t iterations = 1000;
+    constexpr auto container = createArray<iterations>();
+    //--------------------------
+    auto start = std::chrono::high_resolution_clock::now();
+    //--------------------------
+    LOG_INFO_STREAM("Logging overhead test: vector size:", container);
+    //--------------------------
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::micro> duration = end - start;
+    //--------------------------
+    std::cout << "Total time taken for " << iterations << " logging operations: " 
+              << duration.count() << " microseconds" << std::endl;
+    //--------------------------
+} // end void measureLoggingOverhead(void)
+//--------------------------------------------------------------
 void measureLoggingOverheadWarning(void) {
-    const int iterations = 1000;
+    constexpr int iterations = 1000;
     auto start = std::chrono::high_resolution_clock::now();
     //--------------------------
     for (int i = 0; i < iterations; ++i) {
@@ -120,12 +146,46 @@ void measureLoggingOverheadWarning(void) {
     //--------------------------
 } // end void measureLoggingOverheadWarning(void)
 //--------------------------------------------------------------
+void measureLoggingStreamOverheadWarningFunction(void) {
+    constexpr size_t iterations = 1000;
+    constexpr auto container = createArray<iterations>();
+    //--------------------------
+    auto start = std::chrono::high_resolution_clock::now();
+    //--------------------------
+    LOG_WARNING_FUNCTION_STREAM("Logging overhead test: vector size:", container);
+    //--------------------------
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::micro> duration = end - start;
+    //--------------------------
+    std::cout << "Total time taken for " << iterations << " logging operations: " 
+              << duration.count() << " microseconds" << std::endl;
+    //--------------------------
+}// end void measureLoggingStreamOverheadWarningFunction(void)
+//--------------------------------------------------------------
 void measureLoggingOverheadOnce(void) {
-    const int iterations = 1000;
+    constexpr int iterations = 1000;
     auto start = std::chrono::high_resolution_clock::now();
     //--------------------------
     for (int i = 0; i < iterations; ++i) {
         LOG_INFO_ONCE("This INFO_ONCE message should appear only once, but we're testing overhead in a loop.");
+    } // end for(int i = 0; i < iterations; ++i)
+    //--------------------------
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::micro> duration = end - start;
+
+    std::cout << "Total time taken for " << iterations << " LOG_INFO_ONCE operations: " 
+              << duration.count() << " microseconds\n";
+    std::cout << "Average time per LOG_INFO_ONCE operation: " 
+              << duration.count() / iterations << " microseconds\n";
+    //--------------------------
+} // end void measureLoggingOverheadOnce(void)
+//--------------------------------------------------------------
+void measureLoggingOverheadFunctionOnce(void) {
+    constexpr int iterations = 1000;
+    auto start = std::chrono::high_resolution_clock::now();
+    //--------------------------
+    for (int i = 0; i < iterations; ++i) {
+        LOG_INFO_FUNCTION_ONCE("This INFO_ONCE message should appear only once, but we're testing overhead in a loop.");
     } // end for(int i = 0; i < iterations; ++i)
     //--------------------------
     auto end = std::chrono::high_resolution_clock::now();
@@ -150,7 +210,13 @@ int main(void) {
     // //--------------------------
     // measureLoggingOverheadWarning();
     // //--------------------------
-    // measureLoggingOverheadOnce();
+    measureLoggingStreamOverhead();
+    //--------------------------
+    measureLoggingStreamOverheadWarningFunction();
+    //--------------------------
+    measureLoggingOverheadOnce();
+    //--------------------------
+    measureLoggingOverheadFunctionOnce();
     //--------------------------
     return 0;
     //--------------------------
