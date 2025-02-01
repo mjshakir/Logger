@@ -74,6 +74,21 @@ if(${FORCE_COLORED_OUTPUT})
     endif()
 endif()
 #------------------------------------------------------------------------------------------
+# Find SQLite3
+find_package(SQLite3 QUIET)
+if (SQLite3_FOUND)
+    set(BUILD_LOGGER_SQL ON CACHE BOOL "Build Logger with SQLite3 support" FORCE)
+    set(HAS_LOGGER_SQL 1)
+    
+else()
+    set(BUILD_LOGGER_SQL OFF CACHE BOOL "Build Logger with SQLite3 support" FORCE)
+    set(HAS_LOGGER_SQL 0)
+endif()
+add_compile_definitions(HAS_LOGGER_SQL)
+message(STATUS "BUILD_LOGGER_SQL: ${BUILD_LOGGER_SQL}")
+message(STATUS "HAS_LOGGER_SQL: ${HAS_LOGGER_SQL}")
+# Add HAS_LOGGER_SQL to compiler definitions
+#------------------------------------------------------------------------------------------
 # Define the source and include directories
 set(LOGGER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(LOGGER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -82,6 +97,11 @@ set(LOGGER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/Logger.cpp
 )
+#------------------------------------------------------------------------------------------
+# Add SQLogger.cpp only if BUILD_LOGGER_SQL is enabled
+if(BUILD_LOGGER_SQL)
+    list(APPEND LOGGER_SOURCES ${LOGGER_SOURCE_DIR}/SQLogger.cpp)
+endif()
 #------------------------------------------------------------------------------------------
 # Find and link fmt library if not using std::format
 if (NOT __cpp_lib_format)
@@ -103,6 +123,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${LOGGER_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
+#------------------------------------------------------------------------------------------
+if(BUILD_LOGGER_SQL)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
+endif()
 #------------------------------------------------------------------------------------------
 if (NOT __cpp_lib_format)
     target_link_libraries(${PROJECT_NAME} PUBLIC fmt::fmt)
