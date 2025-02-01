@@ -8,7 +8,6 @@
 // #include <iostream>
 #include <chrono>
 #include <fstream>
-#include <sstream>
 #include <iomanip>
 #include <ctime>
 #if !__cpp_lib_format
@@ -86,41 +85,29 @@ constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) co
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    const auto localtime = std::chrono::system_clock::to_time_t(now);
-    std::ostringstream oss;
+    const auto _localtime = std::chrono::system_clock::to_time_t(now);
     //--------------------------
 #if __cpp_lib_format
-    oss << std::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&localtime));
+    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}", *std::localtime(&_localtime), 
+                        level_print(level), message);
 #else
-    oss << fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(localtime));
+    return fmt::format("{:%Y-%m-%d %H:%M:%S}{}{}", fmt::localtime(_localtime), 
+                        level_print(level), message);
 #endif
-    //--------------------------
-    oss << level_print(level);
-    //--------------------------
-    oss << message;
-    //--------------------------
-    return oss.str();
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    const auto localtime = std::chrono::system_clock::to_time_t(now);
-    std::ostringstream oss;
+    const auto _localtime = std::chrono::system_clock::to_time_t(now);
     //--------------------------
 #if __cpp_lib_format
-    oss << std::format("{:%Y-%m-%d %H:%M:%S}", *std::localtime(&localtime));
+    return std::format("{:%Y-%m-%d %H:%M:%S}{}{}: {}", *std::localtime(&_localtime), 
+                        level_print(level), format_function_name(function_name), message);
 #else
-    oss << fmt::format("{:%Y-%m-%d %H:%M:%S}", fmt::localtime(localtime));
+    return fmt::format("{:%Y-%m-%d %H:%M:%S}{}{}: {}", fmt::localtime(_localtime), 
+                        level_print(level), format_function_name(function_name), message);
 #endif
-    //--------------------------
-    oss << level_print(level);
-    //--------------------------
-    oss << "[" << format_function_name(function_name) << "]: ";  // **Fix: Include formatted function name properly**
-    //--------------------------
-    oss << message;  // **Fix: Append the actual log message**
-    //--------------------------
-    return oss.str();
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
