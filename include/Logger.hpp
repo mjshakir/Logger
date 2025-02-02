@@ -4,7 +4,6 @@
 //--------------------------------------------------------------
 #include <cstddef>
 #include <string_view>
-#include <sstream>
 #include <mutex>
 #include <type_traits>
 #include <optional>
@@ -157,7 +156,7 @@ namespace Logger {
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
-                std::string _formatted_message = format_message(level, message, now);
+                const std::string _formatted_message = format_message(level, message, now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -177,7 +176,7 @@ namespace Logger {
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
-                std::string _formatted_message = format_message(level, function_name, message, now);
+                const std::string _formatted_message = format_message(level, function_name, message, now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -188,7 +187,11 @@ namespace Logger {
             //--------------------------
             void level_message(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
+            constexpr std::string_view level_name(const LogLevel& level) const;
+            //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
+            //--------------------------
+            constexpr std::string_view level_log(const LogLevel& level) const;
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
@@ -203,10 +206,10 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                fmt::memory_buffer buffer;
-                fmt::format_to(std::back_inserter(buffer), "{} {}", message, print_container(container));
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, std::string_view(buffer.data(), buffer.size()) , now);
+                const std::string _formatted_message  = format_message(level, std::string_view(_buffer.data(), _buffer.size()) , now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -220,10 +223,10 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                fmt::memory_buffer buffer;
-                fmt::format_to(std::back_inserter(buffer), "{} {}", message, print_container(container));
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, std::string_view(buffer.data(), buffer.size()), now);
+                const std::string _formatted_message  = format_message(level, function_name, std::string_view(_buffer.data(), _buffer.size()), now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -248,47 +251,70 @@ namespace Logger {
             template<typename T>
             std::string print_map(const T& container) const {
 #if __cpp_lib_format
-                std::string result = std::format("{{");
+                //--------------------------
+                std::string _result;
+                _result.reserve(container.size() * 20UL); // Rough estimation for capacity
+                _result += "{"; // Start with "{" instead of "{{" for std::format
+                //--------------------------
                 for (const auto& [key, value] : container) {
-                    result += std::format("{{{}: {}}}, ", key, value);
+                    _result += std::format("{{{}: {}}}, ", key, value);
                 } // end for(const auto& [key, value] : container)
+                //--------------------------
 #else
-                std::string result = fmt::format("{{");
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{{");
+                //--------------------------
                 for (const auto& [key, value] : container) {
-                    result += fmt::format("{{{}: {}}}, ", key, value);
+                    fmt::format_to(std::back_inserter(_buffer), "{{{}: {}}}, ", key, value);
                 } // end for(const auto& [key, value] : container)
+                //--------------------------
+                std::string _result = std::string(_buffer.data(), _buffer.size());
+                //--------------------------
 #endif
                 //--------------------------
-                if (result.size() > 3) { // Remove trailing ", " if present
-                    result.erase(result.size() - 2, 2);
-                } // end if (result.size() > 3)
+                if (_result.size() > 3) { // Remove trailing ", " if present
+                    _result.erase(_result.size() - 2, 2);
+                } // end if (_result.size() > 3)
                 //--------------------------
-                result += "}";
+                _result += "}";
                 //--------------------------
-                return result;
+                return _result;
+                //--------------------------
             } // end std::string print_map(const T& container)
             //--------------------------
             template<typename T>
             std::string print_general_container(const T& container) const {
 #if __cpp_lib_format
-                std::string result = std::format("[");
+                //--------------------------
+                std::string _result;
+                _result.reserve(container.size() * 20UL); // Rough estimation
+                _result += "["; // Start with "[" instead of "{{" for std::format
+                //--------------------------
                 for (const auto& element : container) {
-                    result += std::format("{}, ", element);
+                    _result += std::format("{}, ", element);
                 } // end for(const auto& element : container)
+                //--------------------------
 #else
-                std::string result = fmt::format("[");
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "[");
+                //--------------------------
                 for (const auto& element : container) {
-                    result += fmt::format("{}, ", element);
+                    fmt::format_to(std::back_inserter(_buffer), "{}, ", element);
                 } // end for(const auto& element : container)
+                //--------------------------
+                std::string _result = std::string(_buffer.data(), _buffer.size());
+                //--------------------------
 #endif
                 //--------------------------
-                if (result.size() > 2) { // Remove trailing ", " if present
-                    result.erase(result.size() - 2, 2);
-                } // end if (result.size() > 2)
+                if (_result.size() > 2) { // Remove trailing ", " if present
+                    _result.erase(_result.size() - 2, 2);
+                } // end if (_result.size() > 2)
                 //--------------------------
-                result += "]";
+                _result += "]";
                 //--------------------------
-                return result;
+                return _result;
             } // end std::string print_general_container(const T& container)
             //--------------------------
             template<typename T>
@@ -313,7 +339,7 @@ namespace Logger {
             //--------------------------
             void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
-            void logs(std::string_view log_name, std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            void logs(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
