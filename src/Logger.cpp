@@ -5,9 +5,9 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-#include <array>
 #include <chrono>
 #include <fstream>
+#include <sstream>
 #include <iomanip>
 #include <ctime>
 //--------------------------------------------------------------
@@ -59,7 +59,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
 #else
             fmt::print(fmt::fg(fmt::color::red), "{}\n", message);
 #endif
-            logs("error_log.txt", level_print(LogLevel::ERROR), message, now);
+            logs(level, message, now);
             break;
         case LogLevel::WARNING:
 #if __cpp_lib_format
@@ -67,7 +67,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
 #else
             fmt::print(fmt::fg(fmt::color::yellow), "{}\n", message);
 #endif
-            logs("warning_log.txt", level_print(LogLevel::WARNING), message, now);
+            logs(level, message, now);
             break;
         case LogLevel::INFO:
 #if __cpp_lib_format
@@ -78,6 +78,23 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
             break;
     } // end switch(level)
 }// end void Logger::Logger::level_message(LogLevel level, std::string_view message)
+//--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::level_name(const LogLevel& level) const {
+    //--------------------------
+    switch (level) {
+        case LogLevel::DEBUG:
+            return "DEBUG";
+        case LogLevel::ERROR:
+            return "ERROR";
+        case LogLevel::WARNING:
+            return "WARNING";
+        case LogLevel::INFO:
+            return "INFO";
+        default:
+            return "UNKNOWN";
+    } // end switch(level)
+    //--------------------------
+}// end std::string Logger::Logger::level_name(const LogLevel& level)
 //--------------------------------------------------------------
 constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) const {
     //--------------------------
@@ -95,6 +112,23 @@ constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) co
     } // end switch(level)
     //--------------------------
 }// end std::string Logger::Logger::level_print(const LogLevel& level)
+//--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::level_log(const LogLevel& level) const {
+    //--------------------------
+    switch (level) {
+        case LogLevel::DEBUG:
+            return "debug_log.txt";
+        case LogLevel::ERROR:
+            return "error_log.txt";
+        case LogLevel::WARNING:
+            return "warning_log.txt";
+        case LogLevel::INFO:
+            return "info_log.txt";
+        default:
+            return "UNKNOWN.txt";
+    } // end switch(level)
+    //--------------------------
+}// end std::string Logger::Logger::level_log(const LogLevel& level)
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
@@ -169,17 +203,17 @@ void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono
     //--------------------------
 }// end void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
-void Logger::Logger::logs(std::string_view log_name, std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
+void Logger::Logger::logs(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
 #if HAS_LOGGER_SQL == 1
     static SQLogger& s_sq_logger = SQLogger::instance();
     //--------------------------
-    if(!s_sq_logger.log(message, now)) {
-        log_file(log_name, message, now);
+    if(!s_sq_logger.log(level_name(level), message, now)) {
+        log_file(level_log(level), message, now);
     }// end if(!s_sq_logger.log(message, now))
     //--------------------------
 #else
-    log_file(log_name, message, now);
+    log_file(level_name(level), message, now);
 #endif
 }// end void Logger::Logger::logs(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
