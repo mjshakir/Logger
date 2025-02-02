@@ -21,7 +21,7 @@ template<size_t N>
 constexpr std::array<size_t, N> createArray(void) {
     std::array<size_t, N> arr;
     for(size_t i = 0; i < N; ++i) {
-        arr[i] = i;
+        arr.at(i) = i;
     } // end for(size_t i = 0; i < size; ++i)
     return arr;
 }// end std::array<size_t, N> createArray(void)
