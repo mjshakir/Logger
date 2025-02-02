@@ -22,13 +22,13 @@ namespace Logger {
             //--------------------------------------------------------------
             static SQLogger& instance(void);
             //--------------------------
-            bool log(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt);
+            bool log(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
             bool initialize(void);
             //--------------------------
-            bool log_message(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now);
+            bool log_message(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const;
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------

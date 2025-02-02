@@ -39,14 +39,14 @@ Logger::SQLogger::~SQLogger(void) {
     //--------------------------
 }// end Logger::SQLogger::~SQLogger(void)
 //--------------------------------------------------------------
-bool Logger::SQLogger::log(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) {
+bool Logger::SQLogger::log(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     if (!m_initialized) {
         std::cerr << "SQLogger was not initialized properly." << std::endl;
         return false;
     }// end if (!m_initialized)
     //--------------------------
-    return log_message(message, now);
+    return log_message(level, message, now);
     //--------------------------
 }// end bool Logger::SQLogger::log(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt)
 //--------------------------------------------------------------
@@ -75,10 +75,21 @@ bool Logger::SQLogger::initialize(void) {
     m_db.reset(db_raw);
     //--------------------------
     // SQL to create the logs table if it does not exist
+    // constexpr std::string_view create_table_sql = R"(
+    //     CREATE TABLE IF NOT EXISTS logs (
+    //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+    //         timestamp TEXT NOT NULL,
+    //         log_level  TEXT NOT NULL,
+    //         function_name TEXT NOT NULL,
+    //         message TEXT NOT NULL
+    //     );
+    // )";
+    //--------------------------
     constexpr std::string_view create_table_sql = R"(
         CREATE TABLE IF NOT EXISTS logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT NOT NULL,
+            log_level  TEXT NOT NULL,
             message TEXT NOT NULL
         );
     )";
@@ -92,7 +103,7 @@ bool Logger::SQLogger::initialize(void) {
     //--------------------------
 }// end void Logger::SQLogger::initialize(void)
 //--------------------------------------------------------------
-bool Logger::SQLogger::log_message(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now){
+bool Logger::SQLogger::log_message(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     constexpr std::string_view _zero_time = "0000-00-00 00:00:00";
     //--------------------------
@@ -114,11 +125,13 @@ bool Logger::SQLogger::log_message(std::string_view message, const std::optional
 #endif  
         //--------------------------
         // Build SQL query with std::format
-        sql_query = std::format("INSERT INTO logs (timestamp, message) VALUES ('{}', '{}');", _timeinfo, message);
+        sql_query = std::format("INSERT INTO logs (timestamp, log_level, message) VALUES ('{}', '{}', '{}');",
+                                 _timeinfo, level, message);
         //--------------------------
     } else {
         // If no time passed, use a placeholder
-        sql_query = std::format("INSERT INTO logs (timestamp, message) VALUES ('{}', '{}');",_zero_time, message);
+        sql_query = std::format("INSERT INTO logs (timestamp, log_level, message) VALUES ('{}', '{}', '{}');",
+                                    _zero_time, level, message);
         //--------------------------
     }// end if (now)
 #else
@@ -137,12 +150,14 @@ bool Logger::SQLogger::log_message(std::string_view message, const std::optional
 #endif
         //-----------------------------
         fmt::format_to( std::back_inserter(buffer),
-                        FMT_COMPILE("INSERT INTO logs (timestamp, message) VALUES ('{:%Y-%m-%d %H:%M:%S}', '{}');"), _timeinfo, message);
+                        FMT_COMPILE("INSERT INTO logs (timestamp, log_level, message) VALUES ('{:%Y-%m-%d %H:%M:%S}', '{}', '{}');"),
+                                    _timeinfo, level, message);
         //-----------------------------
 
     } else {
         fmt::format_to(std::back_inserter(buffer),
-            FMT_COMPILE("INSERT INTO logs (timestamp, message) VALUES ('{}', '{}');"), _zero_time, message);
+            FMT_COMPILE("INSERT INTO logs (timestamp, log_level, message) VALUES ('{}', '{}', '{}');"),
+                            _zero_time, level, message);
     }// end if (now)
     //-----------------------------
     // Convert memory_buffer -> std::string
