@@ -213,7 +213,7 @@ void Logger::Logger::logs(const LogLevel& level, std::string_view message, const
     }// end if(!s_sq_logger.log(message, now))
     //--------------------------
 #else
-    log_file(level_name(level), message, now);
+    log_file(level_log(level), message, now);
 #endif
 }// end void Logger::Logger::logs(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
