@@ -63,6 +63,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(LOGGER_DEBUG ON CACHE BOOL "Enable Logger debug messages" FORCE)
 endif()
 message(STATUS "LOGGER_DEBUG: ${LOGGER_DEBUG}")
+#---------------------------------------
+option(BUILD_LOGGER_SQL "Build using shared libraries" OFF)
+message(STATUS "BUILD_LOGGER_SQL: ${BUILD_LOGGER_SQL}")
 #------------------------------------------------------------------------------------------
 # Force colored output
 option(FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." OFF)
@@ -76,16 +79,13 @@ endif()
 #------------------------------------------------------------------------------------------
 # Find SQLite3
 find_package(SQLite3 QUIET)
-if (SQLite3_FOUND)
-    set(BUILD_LOGGER_SQL ON CACHE BOOL "Build Logger with SQLite3 support" FORCE)
+if (SQLite3_FOUND AND BUILD_LOGGER_SQL)
     set(HAS_LOGGER_SQL 1)
     
 else()
-    set(BUILD_LOGGER_SQL OFF CACHE BOOL "Build Logger with SQLite3 support" FORCE)
     set(HAS_LOGGER_SQL 0)
 endif()
-add_compile_definitions(HAS_LOGGER_SQL)
-message(STATUS "BUILD_LOGGER_SQL: ${BUILD_LOGGER_SQL}")
+# add_compile_definitions(HAS_LOGGER_SQL)
 message(STATUS "HAS_LOGGER_SQL: ${HAS_LOGGER_SQL}")
 # Add HAS_LOGGER_SQL to compiler definitions
 #------------------------------------------------------------------------------------------
@@ -119,11 +119,11 @@ else()
     # If needed, set properties specific to static libraries here
 endif()
 #------------------------------------------------------------------------------------------
+target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_LOGGER_SQL=${HAS_LOGGER_SQL})
 target_include_directories(${PROJECT_NAME} PUBLIC 
     $<BUILD_INTERFACE:${LOGGER_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
-#------------------------------------------------------------------------------------------
 if(BUILD_LOGGER_SQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
 endif()
