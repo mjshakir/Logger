@@ -29,6 +29,8 @@ namespace Logger {
             bool initialize(void);
             //--------------------------
             bool log_message(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const;
+           //--------------------------
+            constexpr std::string_view create_table_sql(void) const; 
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------

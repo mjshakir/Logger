@@ -74,27 +74,7 @@ bool Logger::SQLogger::initialize(void) {
     // Store the raw pointer in the unique_ptr
     m_db.reset(db_raw);
     //--------------------------
-    // SQL to create the logs table if it does not exist
-    // constexpr std::string_view create_table_sql = R"(
-    //     CREATE TABLE IF NOT EXISTS logs (
-    //         id INTEGER PRIMARY KEY AUTOINCREMENT,
-    //         timestamp TEXT NOT NULL,
-    //         log_level  TEXT NOT NULL,
-    //         function_name TEXT NOT NULL,
-    //         message TEXT NOT NULL
-    //     );
-    // )";
-    //--------------------------
-    constexpr std::string_view create_table_sql = R"(
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            log_level  TEXT NOT NULL,
-            message TEXT NOT NULL
-        );
-    )";
-    //--------------------------
-    if (sqlite3_exec(m_db.get(), create_table_sql.data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
+    if (sqlite3_exec(m_db.get(), create_table_sql().data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
         std::cerr << "Error creating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
     }// end if (sqlite3_exec(m_db.get(), create_table_sql.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK)
@@ -174,4 +154,27 @@ bool Logger::SQLogger::log_message(std::string_view level, std::string_view mess
     return true;
     //-----------------------------
 }// end bool Logger::SQLogger::log_message(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now)
+//--------------------------------------------------------------
+constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
+    //--------------------------
+    // return R"(
+    //     CREATE TABLE IF NOT EXISTS logs (
+    //         id INTEGER PRIMARY KEY AUTOINCREMENT,
+    //         timestamp TEXT NOT NULL,
+    //         log_level  TEXT NOT NULL,
+    //         function_name TEXT NOT NULL,
+    //         message TEXT NOT NULL
+    //     );
+    // )";
+    //--------------------------
+    return R"(
+        CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            log_level  TEXT NOT NULL,
+            message TEXT NOT NULL
+        );
+    )";
+    //--------------------------
+}// end constexpr std::string_view Logger::SQLogger::create_table_sql(void)
 //--------------------------------------------------------------
