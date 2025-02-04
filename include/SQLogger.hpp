@@ -31,15 +31,13 @@ namespace Logger {
             //--------------------------------------------------------------
             bool initialize(void);
             //--------------------------
-            bool log_message(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const;
-            //--------------------------
             constexpr std::string_view create_table_sql(void) const;
             //--------------------------
             constexpr std::string_view default_time(void) const;
             //--------------------------
             std::string format_time(const std::optional<std::chrono::system_clock::time_point>& now) const;
             //--------------------------
-            bool sql_reset(std::string_view time, std::string_view level, std::string_view message) const;
+            bool insert_stmt(std::string_view time, std::string_view level, std::string_view message) const;
             //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
