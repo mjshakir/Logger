@@ -166,10 +166,9 @@ void Logger::Logger::log_file(std::string_view filename, std::string_view messag
         if (!_log_file.tellp()) { // Check if the file is empty
             //--------------------------
             if (now.has_value()) { // Only format time if provided
-                const auto _localtime = std::chrono::system_clock::to_time_t(now.value());
                 std::tm _timeinfo;
-                localtime_r(&_localtime, &_timeinfo);
-#if __cpp_lib_format
+                get_time(&_timeinfo, now);
+#if __cpp_lib_format 
                 _log_file << std::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
 #else
                 _log_file << fmt::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
