@@ -2,19 +2,19 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-#include <iostream>
+#include <cstddef>
+#include <string_view>
 #include <mutex>
-#include <chrono>
-#include <functional>
 #include <type_traits>
-#include <mutex>
+#include <optional>
+//--------------------------------------------------------------
+// Format library
 //--------------------------------------------------------------
 #if __cpp_lib_format
     #include <format>
 #else
     #include <fmt/core.h>
-    #include <fmt/chrono.h>
-    #include <fmt/color.h>
+    #include <fmt/format.h>
 #endif
 //--------------------------------------------------------------
 namespace Logger {
@@ -58,6 +58,8 @@ namespace Logger {
         public:
             //--------------------------------------------------------------
             static Logger& instance(void);
+            //--------------------------------------------------------------
+            // Logging functions
             //--------------------------
             template<typename... Args>
             void debug(std::string_view format, Args&&... args) {
@@ -99,12 +101,52 @@ namespace Logger {
                 log_stream(LogLevel::INFO, message, container);
             } // end void info_stream(std::string_view message, const T& container)
             //--------------------------------------------------------------
+            // Function to log messages with function name
+            //--------------------------
+            template<typename... Args>
+            void debug_function(std::string_view function_name, std::string_view format, Args&&... args) {
+                log(LogLevel::DEBUG, function_name, format, std::forward<Args>(args)...);
+            }// end void debug(std::string_view format, Args&&... args)
+            //--------------------------
+            template<typename... Args>
+            void error_function(std::string_view function_name, std::string_view format, Args&&... args) {
+                log(LogLevel::ERROR, function_name, format, std::forward<Args>(args)...);
+            }// end void error(std::string_view format, Args&&... args)
+            //--------------------------
+            template<typename... Args>
+            void warning_function(std::string_view function_name, std::string_view format, Args&&... args) {
+                log(LogLevel::WARNING, function_name, format, std::forward<Args>(args)...);
+            } // end void warning(std::string_view format, Args&&... args)
+            //--------------------------
+            template<typename... Args>
+            void info_function(std::string_view function_name, std::string_view format, Args&&... args) {
+                log(LogLevel::INFO, function_name, format, std::forward<Args>(args)...);
+            } // end void info(std::string_view format, Args&&... args)
+            //--------------------------
+            template<typename T>
+            void debug_stream_function(std::string_view function_name, std::string_view message, const T& container) {
+                log_stream(LogLevel::DEBUG, function_name, message, container);
+            } // end void debug_stream(std::string_view message, const T& container)
+            //--------------------------
+            template<typename T>
+            void error_stream_function(std::string_view function_name, std::string_view message, const T& container) {
+                log_stream(LogLevel::ERROR, function_name, message, container);
+            } // end void error_stream(std::string_view message, const T& container)
+            //--------------------------
+            template<typename T>
+            void warning_stream_function(std::string_view function_name, std::string_view message, const T& container) {
+                log_stream(LogLevel::WARNING, function_name, message, container);
+            } // end void warning_stream(std::string_view message, const T& container)
+            //--------------------------
+            template<typename T>
+            void info_stream_function(std::string_view function_name, std::string_view message, const T& container) {
+                log_stream(LogLevel::INFO, function_name, message, container);
+            } // end void info_stream(std::string_view message, const T& container)
+            //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
             template<typename... Args>
             void log(const LogLevel& level, std::string_view format, Args&&... args) {
-                //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
@@ -114,32 +156,82 @@ namespace Logger {
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
-                std::string _formatted_message = format_message(level, message, now);
+                const std::string _formatted_message = format_message(level, message, now);
                 //--------------------------
-                level_message(level, _formatted_message);
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message), now);
+                } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
             //--------------------------
-            void level_message(const LogLevel& level, std::string_view message) const;
+            template<typename... Args>
+            void log(const LogLevel& level, std::string_view function_name, std::string_view format, Args&&... args) {
+                //--------------------------
+                const auto now = std::chrono::system_clock::now();
+                //--------------------------
+#if __cpp_lib_format
+                const std::string message = std::vformat(format, std::make_format_args(args...));
+#else
+                const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
+#endif
+                //--------------------------
+                const std::string _formatted_message = format_message(level, function_name, message, now);
+                //--------------------------
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message), now);
+                } // end protect the log_file call
+                //--------------------------
+            }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
+            //--------------------------
+            void level_message(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            constexpr std::string_view level_name(const LogLevel& level) const;
             //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
+            constexpr std::string_view level_log(const LogLevel& level) const;
+            //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
-            void log_file(const std::string& filename, std::string_view message) const;
+            std::string format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const;
+            //--------------------------
+            void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            constexpr std::string_view format_function_name(std::string_view function_name) const;
             //--------------------------
             template<typename T>
             void log_stream(const LogLevel& level, std::string_view message, const T& container) {
                 //--------------------------
-                std::lock_guard<std::mutex> lock(m_mutex);
+                const auto now = std::chrono::system_clock::now();
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                //--------------------------
+                const std::string _formatted_message  = format_message(level, std::string_view(_buffer.data(), _buffer.size()) , now);
+                //--------------------------
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message), now);
+                } // end protect the log_file call
+                //--------------------------
+            }// end void log_stream(LogLevel level, std::string_view message, const T& container)
+            //--------------------------
+            template<typename T>
+            void log_stream(const LogLevel& level, std::string_view function_name, std::string_view message, const T& container) {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                const std::string container_str       = print_container(container);
-                const std::string combined_message    = std::string(message) + " " + container_str;
-                const std::string _formatted_message  = format_message(level, combined_message, now);
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
                 //--------------------------
-                level_message(level, _formatted_message);
+                const std::string _formatted_message  = format_message(level, function_name, std::string_view(_buffer.data(), _buffer.size()), now);
+                //--------------------------
+                { // protect the log_file call
+                    std::lock_guard<std::mutex> lock(m_mutex);
+                    level_message(level, std::move(_formatted_message), now);
+                } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
@@ -159,47 +251,70 @@ namespace Logger {
             template<typename T>
             std::string print_map(const T& container) const {
 #if __cpp_lib_format
-                std::string result = std::format("{{");
+                //--------------------------
+                std::string _result;
+                _result.reserve(container.size() * 20UL); // Rough estimation for capacity
+                _result += "{"; // Start with "{" instead of "{{" for std::format
+                //--------------------------
                 for (const auto& [key, value] : container) {
-                    result += std::format("{{{}: {}}}, ", key, value);
+                    _result += std::format("{{{}: {}}}, ", key, value);
                 } // end for(const auto& [key, value] : container)
+                //--------------------------
 #else
-                std::string result = fmt::format("{{");
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{{");
+                //--------------------------
                 for (const auto& [key, value] : container) {
-                    result += fmt::format("{{{}: {}}}, ", key, value);
+                    fmt::format_to(std::back_inserter(_buffer), "{{{}: {}}}, ", key, value);
                 } // end for(const auto& [key, value] : container)
+                //--------------------------
+                std::string _result = std::string(_buffer.data(), _buffer.size());
+                //--------------------------
 #endif
                 //--------------------------
-                if (result.size() > 3) { // Remove trailing ", " if present
-                    result.erase(result.size() - 2, 2);
-                } // end if (result.size() > 3)
+                if (_result.size() > 3) { // Remove trailing ", " if present
+                    _result.erase(_result.size() - 2, 2);
+                } // end if (_result.size() > 3)
                 //--------------------------
-                result += "}";
+                _result += "}";
                 //--------------------------
-                return result;
+                return _result;
+                //--------------------------
             } // end std::string print_map(const T& container)
             //--------------------------
             template<typename T>
             std::string print_general_container(const T& container) const {
 #if __cpp_lib_format
-                std::string result = std::format("[");
+                //--------------------------
+                std::string _result;
+                _result.reserve(container.size() * 20UL); // Rough estimation
+                _result += "["; // Start with "[" instead of "{{" for std::format
+                //--------------------------
                 for (const auto& element : container) {
-                    result += std::format("{}, ", element);
+                    _result += std::format("{}, ", element);
                 } // end for(const auto& element : container)
+                //--------------------------
 #else
-                std::string result = fmt::format("[");
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "[");
+                //--------------------------
                 for (const auto& element : container) {
-                    result += fmt::format("{}, ", element);
+                    fmt::format_to(std::back_inserter(_buffer), "{}, ", element);
                 } // end for(const auto& element : container)
+                //--------------------------
+                std::string _result = std::string(_buffer.data(), _buffer.size());
+                //--------------------------
 #endif
                 //--------------------------
-                if (result.size() > 2) { // Remove trailing ", " if present
-                    result.erase(result.size() - 2, 2);
-                } // end if (result.size() > 2)
+                if (_result.size() > 2) { // Remove trailing ", " if present
+                    _result.erase(_result.size() - 2, 2);
+                } // end if (_result.size() > 2)
                 //--------------------------
-                result += "]";
+                _result += "]";
                 //--------------------------
-                return result;
+                return _result;
             } // end std::string print_general_container(const T& container)
             //--------------------------
             template<typename T>
@@ -218,7 +333,13 @@ namespace Logger {
 #else
                 return fmt::format("{}", element);
 #endif
-            }
+            }// end std::string print_element(const T& element)
+            //--------------------------
+            // helper function to get the current time
+            //--------------------------
+            void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            void logs(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
@@ -235,6 +356,16 @@ namespace Logger {
     }; // end class Logger
     //--------------------------------------------------------------
 } // end namespace Logger
+//--------------------------------------------------------------
+// Macros for Automatically Capturing Function Name and Class**
+//--------------------------------------------------------------
+#ifdef __GNUC__  // GCC/Clang
+    #define FUNC_NAME __PRETTY_FUNCTION__ // __func__ __FUNCTION__ __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)  // MSVC
+    #define FUNC_NAME __FUNCTION__
+#else
+    #define FUNC_NAME "UnknownFunction"
+#endif
 //--------------------------------------------------------------
 // Existing logging macros
 //--------------------------------------------------------------
@@ -307,5 +438,72 @@ namespace Logger {
 #else
     #define LOG_DEBUG_ONCE(msg, ...)
     #define LOG_DEBUG_ONCE_STREAM(msg, container)
+#endif
+//--------------------------------------------------------------i
+// Logging With Function Name and Class
+//--------------------------------------------------------------
+#define LOG_ERROR_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_WARNING_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_INFO_FUNCTION(msg, ...) Logger::Logger::instance().info_function(FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_ERROR_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
+#define LOG_WARNING_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
+#define LOG_INFO_FUNCTION_STREAM(msg, container) Logger::Logger::instance().info_stream_function(FUNC_NAME, msg, container)
+//--------------------------------------------------------------
+// **Logging macros for conditional logging with DEBUG**
+//--------------------------------------------------------------
+#ifdef LOGGER_DEBUG
+    #define LOG_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().debug_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().debug_stream_function(FUNC_NAME, msg, container)
+    //--------------------------
+    // **Newly added macros**
+    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_WARNING_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
+    //--------------------------
+    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_ERROR_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
+#else
+    #define LOG_DEBUG_FUNCTION(msg, ...)
+    #define LOG_DEBUG_FUNCTION_STREAM(msg, container)
+    //--------------------------
+    // **Ensure macros do nothing when DEBUG is not defined**
+    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...)
+    #define LOG_WARNING_DEBUG_FUNCTION_STREAM(msg, container)
+    //--------------------------
+    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...)
+    #define LOG_ERROR_DEBUG_FUNCTION_STREAM(msg, container)
+#endif
+
+//--------------------------------------------------------------
+// **Logging macros for logging messages only once**
+//--------------------------------------------------------------
+#define LOG_ONCE_FUNCTION(level_method, msg, ...) do { \
+    static std::once_flag UNIQUE_VAR(log_once_flag_); \
+    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
+        Logger::Logger::instance().level_method(FUNC_NAME, msg, ##__VA_ARGS__); \
+    }); \
+} while(0)
+
+#define LOG_ONCE_FUNCTION_STREAM(level_method, msg, container) do { \
+    static std::once_flag UNIQUE_VAR(log_once_flag_); \
+    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
+        Logger::Logger::instance().level_method##_stream(FUNC_NAME, msg, container); \
+    }); \
+} while(0)
+
+// **Define macros for each log level**
+#define LOG_ERROR_FUNCTION_ONCE(msg, ...) LOG_ONCE(error, FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_WARNING_FUNCTION_ONCE(msg, ...) LOG_ONCE(warning, FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_INFO_FUNCTION_ONCE(msg, ...) LOG_ONCE(info, FUNC_NAME, msg, ##__VA_ARGS__)
+
+#define LOG_ERROR_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(error, FUNC_NAME, msg, container)
+#define LOG_WARNING_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(warning, FUNC_NAME, msg, container)
+#define LOG_INFO_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(info, FUNC_NAME, msg, container)
+
+#ifdef LOGGER_DEBUG
+    #define LOG_DEBUG_FUNCTION_ONCE(msg, ...) LOG_ONCE(debug, FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(debug, FUNC_NAME, msg, container)
+#else
+    #define LOG_DEBUG_FUNCTION_ONCE(msg, ...)
+    #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container)
 #endif
 //--------------------------------------------------------------
