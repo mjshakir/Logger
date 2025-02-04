@@ -337,6 +337,8 @@ namespace Logger {
             //--------------------------
             // helper function to get the current time
             //--------------------------
+            void print_file(std::string_view message) const;
+            //--------------------------
             void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
             void logs(const LogLevel& level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
