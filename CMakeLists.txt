@@ -64,7 +64,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 message(STATUS "LOGGER_DEBUG: ${LOGGER_DEBUG}")
 #---------------------------------------
-option(BUILD_LOGGER_SQL "Build using shared libraries" OFF)
+option(BUILD_LOGGER_SQL "Build using shared libraries" ON)
 message(STATUS "BUILD_LOGGER_SQL: ${BUILD_LOGGER_SQL}")
 #------------------------------------------------------------------------------------------
 # Force colored output
