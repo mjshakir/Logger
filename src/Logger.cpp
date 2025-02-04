@@ -7,7 +7,6 @@
 //--------------------------------------------------------------
 #include <chrono>
 #include <fstream>
-#include <sstream>
 #include <iomanip>
 #include <ctime>
 //--------------------------------------------------------------
@@ -46,11 +45,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
     switch (level) {
         case LogLevel::DEBUG:
 #ifdef DEBUG
-#if __cpp_lib_format
-            std::println("{}", message);
-#else
-            fmt::print("{}\n", message);
-#endif
+            print_file(message);
 #endif
             break;
         case LogLevel::ERROR:
@@ -70,11 +65,7 @@ void Logger::Logger::level_message(const LogLevel& level, std::string_view messa
             logs(level, message, now);
             break;
         case LogLevel::INFO:
-#if __cpp_lib_format
-            std::println("{}", message);
-#else
-            fmt::print("{}\n", message);
-#endif
+            print_file(message);
             break;
     } // end switch(level)
 }// end void Logger::Logger::level_message(LogLevel level, std::string_view message)
@@ -185,10 +176,18 @@ void Logger::Logger::log_file(std::string_view filename, std::string_view messag
 constexpr std::string_view Logger::Logger::format_function_name(std::string_view function_name) const {
     //--------------------------
     // Find the last "::" occurrence and return only the function name
-    const size_t pos = function_name.rfind("::");
-    return (pos != std::string_view::npos) ? function_name.substr(pos + 2) : function_name;
+    const size_t _pos = function_name.rfind("::");
+    return (_pos != std::string_view::npos) ? function_name.substr(_pos + 2) : function_name;
     //--------------------------
 }// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
+//--------------------------------------------------------------
+void Logger::Logger::print_file(std::string_view message) const {
+#if __cpp_lib_format
+            std::println("{}", message);
+#else
+            fmt::print("{}\n", message);
+#endif
+}// end void Logger::Logger::print_file(std::string_view message) const
 //--------------------------------------------------------------
 void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
