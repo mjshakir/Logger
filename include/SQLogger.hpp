@@ -5,6 +5,7 @@
 #include <optional>
 #include <memory>
 #include <string_view>
+#include <chrono>
 // #include <mutex>
 //--------------------------------------------------------------
 // Forward declarations for SQLite
