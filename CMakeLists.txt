@@ -80,9 +80,11 @@ endif()
 # Find SQLite3
 find_package(SQLite3 QUIET)
 if (SQLite3_FOUND AND BUILD_LOGGER_SQL)
+    set(BUILD_LOGGER_SQL ON)
     set(HAS_LOGGER_SQL 1)
     
 else()
+    set(BUILD_LOGGER_SQL OFF)
     set(HAS_LOGGER_SQL 0)
 endif()
 # add_compile_definitions(HAS_LOGGER_SQL)
