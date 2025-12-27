@@ -2,15 +2,26 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
+#include <chrono>
 #include <cstddef>
-#include <string_view>
+#include <cstdint>
+#include <ctime>
+#include <iterator>
 #include <mutex>
-#include <type_traits>
 #include <optional>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <version>
+//--------------------------------------------------------------
+// User Defined library
+//--------------------------------------------------------------
+#include "LoggerAPI.hpp"
 //--------------------------------------------------------------
 // Format library
 //--------------------------------------------------------------
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
     #include <format>
 #else
     #include <fmt/core.h>
@@ -19,7 +30,7 @@
 //--------------------------------------------------------------
 namespace Logger {
     //--------------------------------------------------------------
-    class Logger {
+    class LOGGER_API Logger {
         //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
@@ -150,7 +161,7 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 const std::string message = std::vformat(format, std::make_format_args(args...));
 #else
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
@@ -170,7 +181,7 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 const std::string message = std::vformat(format, std::make_format_args(args...));
 #else
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
@@ -206,10 +217,14 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                fmt::memory_buffer _buffer;
-                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                const std::string _container = print_container(container);
+                std::string _message;
+                _message.reserve(message.size() + 1 + _container.size());
+                _message.append(message);
+                _message.push_back(' ');
+                _message.append(_container);
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, std::string_view(_buffer.data(), _buffer.size()) , now);
+                const std::string _formatted_message  = format_message(level, _message , now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -223,10 +238,14 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                fmt::memory_buffer _buffer;
-                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                const std::string _container = print_container(container);
+                std::string _message;
+                _message.reserve(message.size() + 1 + _container.size());
+                _message.append(message);
+                _message.push_back(' ');
+                _message.append(_container);
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, std::string_view(_buffer.data(), _buffer.size()), now);
+                const std::string _formatted_message  = format_message(level, function_name, _message, now);
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -250,14 +269,14 @@ namespace Logger {
             //--------------------------
             template<typename T>
             std::string print_map(const T& container) const {
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 //--------------------------
                 std::string _result;
                 _result.reserve(container.size() * 20UL); // Rough estimation for capacity
                 _result += "{"; // Start with "{" instead of "{{" for std::format
                 //--------------------------
                 for (const auto& [key, value] : container) {
-                    _result += std::format("{{{}: {}}}, ", key, value);
+                    std::format_to(std::back_inserter(_result), "{{{}: {}}}, ", key, value);
                 } // end for(const auto& [key, value] : container)
                 //--------------------------
 #else
@@ -285,14 +304,14 @@ namespace Logger {
             //--------------------------
             template<typename T>
             std::string print_general_container(const T& container) const {
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 //--------------------------
                 std::string _result;
                 _result.reserve(container.size() * 20UL); // Rough estimation
                 _result += "["; // Start with "[" instead of "{{" for std::format
                 //--------------------------
                 for (const auto& element : container) {
-                    _result += std::format("{}, ", element);
+                    std::format_to(std::back_inserter(_result), "{}, ", element);
                 } // end for(const auto& element : container)
                 //--------------------------
 #else
@@ -319,7 +338,7 @@ namespace Logger {
             //--------------------------
             template<typename T>
             std::string print_enum(const T& element) const {
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 return std::format("{}", static_cast<std::underlying_type_t<T>>(element));
 #else
                 return fmt::format("{}", static_cast<std::underlying_type_t<T>>(element));
@@ -328,14 +347,12 @@ namespace Logger {
             //--------------------------
             template<typename T>
             std::string print_element(const T& element) const {
-#if __cpp_lib_format
+#if LOGGER_HAS_STD_FORMAT
                 return std::format("{}", element);
 #else
                 return fmt::format("{}", element);
 #endif
             }// end std::string print_element(const T& element)
-            //--------------------------
-            // helper function to get the current time
             //--------------------------
             void print_file(std::string_view message) const;
             //--------------------------
@@ -371,9 +388,9 @@ namespace Logger {
 //--------------------------------------------------------------
 // Existing logging macros
 //--------------------------------------------------------------
-#define LOG_ERROR(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
-#define LOG_WARNING(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
-#define LOG_INFO(msg, ...) Logger::Logger::instance().info(msg, ##__VA_ARGS__)
+#define LOG_ERROR(msg, ...) Logger::Logger::instance().error(msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_WARNING(msg, ...) Logger::Logger::instance().warning(msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_INFO(msg, ...) Logger::Logger::instance().info(msg __VA_OPT__(,) __VA_ARGS__)
 #define LOG_ERROR_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
 #define LOG_WARNING_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
 #define LOG_INFO_STREAM(msg, container) Logger::Logger::instance().info_stream(msg, container)
@@ -387,14 +404,14 @@ namespace Logger {
 // **Logging macros for conditional logging with DEBUG**
 //--------------------------------------------------------------
 #ifdef LOGGER_DEBUG
-    #define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg, ##__VA_ARGS__)
+    #define LOG_DEBUG(msg, ...) Logger::Logger::instance().debug(msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_DEBUG_STREAM(msg, container) Logger::Logger::instance().debug_stream(msg, container)
     //--------------------------
     // **Newly added macros**
-    #define LOG_WARNING_DEBUG(msg, ...) Logger::Logger::instance().warning(msg, ##__VA_ARGS__)
+    #define LOG_WARNING_DEBUG(msg, ...) Logger::Logger::instance().warning(msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_WARNING_DEBUG_STREAM(msg, container) Logger::Logger::instance().warning_stream(msg, container)
     //--------------------------
-    #define LOG_ERROR_DEBUG(msg, ...) Logger::Logger::instance().error(msg, ##__VA_ARGS__)
+    #define LOG_ERROR_DEBUG(msg, ...) Logger::Logger::instance().error(msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_ERROR_DEBUG_STREAM(msg, container) Logger::Logger::instance().error_stream(msg, container)
 #else
     #define LOG_DEBUG(msg, ...)
@@ -411,42 +428,47 @@ namespace Logger {
 //--------------------------------------------------------------
 // **Logging macros for logging messages only once**
 //--------------------------------------------------------------
-#define LOG_ONCE(level_method, msg, ...) do { \
-    static std::once_flag UNIQUE_VAR(log_once_flag_); \
-    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
-        Logger::Logger::instance().level_method(msg, ##__VA_ARGS__); \
+#define LOG_ONCE_IMPL(level_method, flag_var, ...) do { \
+    static std::once_flag flag_var; \
+    std::call_once(flag_var, [&]{ \
+        Logger::Logger::instance().level_method(__VA_ARGS__); \
     }); \
 } while(0)
 
-#define LOG_ONCE_STREAM(level_method, msg, container) do { \
-    static std::once_flag UNIQUE_VAR(log_once_flag_); \
-    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
-        Logger::Logger::instance().level_method##_stream(msg, container); \
+#define LOG_ONCE(level_method, ...) LOG_ONCE_IMPL(level_method, UNIQUE_VAR(log_once_flag_), __VA_ARGS__)
+
+#define LOG_ONCE_STREAM_IMPL(level_method, flag_var, msg, container) do { \
+    static std::once_flag flag_var; \
+    std::call_once(flag_var, [&]{ \
+        Logger::Logger::instance().level_method(msg, container); \
     }); \
 } while(0)
+
+#define LOG_ONCE_STREAM(level_method, msg, container) \
+    LOG_ONCE_STREAM_IMPL(level_method, UNIQUE_VAR(log_once_flag_), msg, container)
 
 // **Define macros for each log level**
-#define LOG_ERROR_ONCE(msg, ...) LOG_ONCE(error, msg, ##__VA_ARGS__)
-#define LOG_WARNING_ONCE(msg, ...) LOG_ONCE(warning, msg, ##__VA_ARGS__)
-#define LOG_INFO_ONCE(msg, ...) LOG_ONCE(info, msg, ##__VA_ARGS__)
+#define LOG_ERROR_ONCE(...) LOG_ONCE(error, __VA_ARGS__)
+#define LOG_WARNING_ONCE(...) LOG_ONCE(warning, __VA_ARGS__)
+#define LOG_INFO_ONCE(...) LOG_ONCE(info, __VA_ARGS__)
 
-#define LOG_ERROR_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(error, msg, container)
-#define LOG_WARNING_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(warning, msg, container)
-#define LOG_INFO_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(info, msg, container)
+#define LOG_ERROR_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(error_stream, msg, container)
+#define LOG_WARNING_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(warning_stream, msg, container)
+#define LOG_INFO_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(info_stream, msg, container)
 
 #ifdef LOGGER_DEBUG
-    #define LOG_DEBUG_ONCE(msg, ...) LOG_ONCE(debug, msg, ##__VA_ARGS__)
-    #define LOG_DEBUG_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(debug, msg, container)
+    #define LOG_DEBUG_ONCE(...) LOG_ONCE(debug, __VA_ARGS__)
+    #define LOG_DEBUG_ONCE_STREAM(msg, container) LOG_ONCE_STREAM(debug_stream, msg, container)
 #else
-    #define LOG_DEBUG_ONCE(msg, ...)
+    #define LOG_DEBUG_ONCE(...)
     #define LOG_DEBUG_ONCE_STREAM(msg, container)
 #endif
 //--------------------------------------------------------------i
 // Logging With Function Name and Class
 //--------------------------------------------------------------
-#define LOG_ERROR_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg, ##__VA_ARGS__)
-#define LOG_WARNING_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg, ##__VA_ARGS__)
-#define LOG_INFO_FUNCTION(msg, ...) Logger::Logger::instance().info_function(FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_ERROR_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_WARNING_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_INFO_FUNCTION(msg, ...) Logger::Logger::instance().info_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
 #define LOG_ERROR_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
 #define LOG_WARNING_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
 #define LOG_INFO_FUNCTION_STREAM(msg, container) Logger::Logger::instance().info_stream_function(FUNC_NAME, msg, container)
@@ -454,14 +476,14 @@ namespace Logger {
 // **Logging macros for conditional logging with DEBUG**
 //--------------------------------------------------------------
 #ifdef LOGGER_DEBUG
-    #define LOG_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().debug_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().debug_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().debug_stream_function(FUNC_NAME, msg, container)
     //--------------------------
     // **Newly added macros**
-    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_WARNING_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
     //--------------------------
-    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg, ##__VA_ARGS__)
+    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
     #define LOG_ERROR_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
 #else
     #define LOG_DEBUG_FUNCTION(msg, ...)
@@ -478,34 +500,40 @@ namespace Logger {
 //--------------------------------------------------------------
 // **Logging macros for logging messages only once**
 //--------------------------------------------------------------
-#define LOG_ONCE_FUNCTION(level_method, msg, ...) do { \
-    static std::once_flag UNIQUE_VAR(log_once_flag_); \
-    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
-        Logger::Logger::instance().level_method(FUNC_NAME, msg, ##__VA_ARGS__); \
+#define LOG_ONCE_FUNCTION_IMPL(level_method, flag_var, ...) do { \
+    static std::once_flag flag_var; \
+    std::call_once(flag_var, [&]{ \
+        Logger::Logger::instance().level_method(FUNC_NAME, __VA_ARGS__); \
     }); \
 } while(0)
 
-#define LOG_ONCE_FUNCTION_STREAM(level_method, msg, container) do { \
-    static std::once_flag UNIQUE_VAR(log_once_flag_); \
-    std::call_once(UNIQUE_VAR(log_once_flag_), [&]{ \
-        Logger::Logger::instance().level_method##_stream(FUNC_NAME, msg, container); \
+#define LOG_ONCE_FUNCTION(level_method, ...) \
+    LOG_ONCE_FUNCTION_IMPL(level_method, UNIQUE_VAR(log_once_flag_), __VA_ARGS__)
+
+#define LOG_ONCE_FUNCTION_STREAM_IMPL(level_method, flag_var, msg, container) do { \
+    static std::once_flag flag_var; \
+    std::call_once(flag_var, [&]{ \
+        Logger::Logger::instance().level_method(FUNC_NAME, msg, container); \
     }); \
 } while(0)
+
+#define LOG_ONCE_FUNCTION_STREAM(level_method, msg, container) \
+    LOG_ONCE_FUNCTION_STREAM_IMPL(level_method, UNIQUE_VAR(log_once_flag_), msg, container)
 
 // **Define macros for each log level**
-#define LOG_ERROR_FUNCTION_ONCE(msg, ...) LOG_ONCE(error, FUNC_NAME, msg, ##__VA_ARGS__)
-#define LOG_WARNING_FUNCTION_ONCE(msg, ...) LOG_ONCE(warning, FUNC_NAME, msg, ##__VA_ARGS__)
-#define LOG_INFO_FUNCTION_ONCE(msg, ...) LOG_ONCE(info, FUNC_NAME, msg, ##__VA_ARGS__)
+#define LOG_ERROR_FUNCTION_ONCE(...) LOG_ONCE_FUNCTION(error_function, __VA_ARGS__)
+#define LOG_WARNING_FUNCTION_ONCE(...) LOG_ONCE_FUNCTION(warning_function, __VA_ARGS__)
+#define LOG_INFO_FUNCTION_ONCE(...) LOG_ONCE_FUNCTION(info_function, __VA_ARGS__)
 
-#define LOG_ERROR_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(error, FUNC_NAME, msg, container)
-#define LOG_WARNING_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(warning, FUNC_NAME, msg, container)
-#define LOG_INFO_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(info, FUNC_NAME, msg, container)
+#define LOG_ERROR_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_FUNCTION_STREAM(error_stream_function, msg, container)
+#define LOG_WARNING_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_FUNCTION_STREAM(warning_stream_function, msg, container)
+#define LOG_INFO_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_FUNCTION_STREAM(info_stream_function, msg, container)
 
 #ifdef LOGGER_DEBUG
-    #define LOG_DEBUG_FUNCTION_ONCE(msg, ...) LOG_ONCE(debug, FUNC_NAME, msg, ##__VA_ARGS__)
-    #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_STREAM(debug, FUNC_NAME, msg, container)
+    #define LOG_DEBUG_FUNCTION_ONCE(...) LOG_ONCE_FUNCTION(debug_function, __VA_ARGS__)
+    #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container) LOG_ONCE_FUNCTION_STREAM(debug_stream_function, msg, container)
 #else
-    #define LOG_DEBUG_FUNCTION_ONCE(msg, ...)
+    #define LOG_DEBUG_FUNCTION_ONCE(...)
     #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container)
 #endif
 //--------------------------------------------------------------
