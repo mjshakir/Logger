@@ -1,2 +1,10 @@
 # Ignore the build directory
 build/
+
+# Ignore the database
+*.db
+*.db*
+*_log.txt
+
+# Ignore check
+__cmake_systeminformation/
