@@ -5,22 +5,23 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
+#include <array>
+#include <ctime>
 #include <iostream>
 //--------------------------------------------------------------
 // SQLite library
 //--------------------------------------------------------------
 #include <sqlite3.h>
 //--------------------------------------------------------------
-// Format library
-//--------------------------------------------------------------
-#if __cpp_lib_format
-    #include <format>
-#else
-    #include <fmt/core.h>
-    #include <fmt/format.h>
-    #include <fmt/compile.h>
-    #include <fmt/chrono.h>
-#endif
+namespace {
+    std::string format_timestamp(const std::tm& timeinfo) {
+        std::array<char, 32> buf{};
+        if (std::strftime(buf.data(), buf.size(), "%Y-%m-%d %H:%M:%S", &timeinfo) == 0) {
+            return {};
+        }
+        return std::string(buf.data());
+    }
+} // namespace
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
     //--------------------------
@@ -57,8 +58,6 @@ bool Logger::SQLogger::log(std::string_view level, std::string_view message, con
 }// end bool Logger::SQLogger::log(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt)
 //--------------------------------------------------------------
 bool Logger::SQLogger::initialize(void) {
-    //--------------------------
-    // std::lock_guard<std::mutex> lock(m_mutex);
     //--------------------------
     // Use a temporary raw pointer because sqlite3_open requires a sqlite3**
     sqlite3* db_raw = nullptr;
@@ -130,11 +129,7 @@ constexpr std::string_view Logger::SQLogger::default_time(void) const {
 std::string Logger::SQLogger::format_time(const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     if (!now.has_value()) {
-#if __cpp_lib_format
-    return std::format("{}", default_time());
-#else
-    return fmt::format(FMT_COMPILE("{}"), default_time());
-#endif
+        return std::string(default_time());
     }// end if (!now.has_value())
     //--------------------------
     const std::time_t _localtime = std::chrono::system_clock::to_time_t(now.value());
@@ -146,11 +141,7 @@ std::string Logger::SQLogger::format_time(const std::optional<std::chrono::syste
     localtime_r(&_localtime, &_timeinfo);
 #endif
     //--------------------------
-#if __cpp_lib_format
-    return std::format("{:%Y-%m-%d %H:%M:%S}", _timeinfo);
-#else     
-    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}"), _timeinfo);
-#endif
+    return format_timestamp(_timeinfo);
     //--------------------------
 }// end std::string std::string_view Logger::SQLogger::format_time(const std::optional<std::chrono::system_clock::time_point>& now)
 //--------------------------------------------------------------
