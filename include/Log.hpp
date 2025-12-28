@@ -1,6 +1,6 @@
 #pragma once
 //--------------------------------------------------------------
-// Main Header
+// Log Macros
 //--------------------------------------------------------------
 #include "Logger.hpp"
 //--------------------------------------------------------------
@@ -166,4 +166,3 @@
     #define LOG_DEBUG_FUNCTION_ONCE(...)
     #define LOG_DEBUG_ONCE_FUNCTION_STREAM(msg, container)
 #endif
-
