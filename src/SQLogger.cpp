@@ -21,6 +21,35 @@ namespace {
         }
         return std::string(buf.data());
     }
+
+    bool has_column(sqlite3* db, std::string_view table_name, std::string_view column_name) {
+        if (!db) {
+            return false;
+        }
+
+        std::string pragma;
+        pragma.reserve(32 + table_name.size());
+        pragma.append("PRAGMA table_info(");
+        pragma.append(table_name);
+        pragma.append(");");
+
+        sqlite3_stmt* stmt = nullptr;
+        if (sqlite3_prepare_v2(db, pragma.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            return false;
+        }
+
+        bool found = false;
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const unsigned char* name = sqlite3_column_text(stmt, 1);
+            if (name && column_name == reinterpret_cast<const char*>(name)) {
+                found = true;
+                break;
+            }
+        }
+
+        sqlite3_finalize(stmt);
+        return found;
+    }
 } // namespace
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
@@ -56,6 +85,17 @@ bool Logger::SQLogger::log(std::string_view level, std::string_view message, con
     return insert_stmt(format_time(now), level, message);
     //--------------------------
 }// end bool Logger::SQLogger::log(std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt)
+//--------------------------------------------------------------
+bool Logger::SQLogger::log(std::string_view level, std::string_view message, std::string_view function_name, const std::optional<std::chrono::system_clock::time_point>& now) const {
+    //--------------------------
+    if (!m_initialized) {
+        std::cerr << "SQLogger was not initialized properly." << std::endl;
+        return false;
+    }// end if (!m_initialized)
+    //--------------------------
+    return insert_stmt(format_time(now), level, message, function_name);
+    //--------------------------
+}// end bool Logger::SQLogger::log(std::string_view level, std::string_view message, std::string_view function_name, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt)
 //--------------------------------------------------------------
 bool Logger::SQLogger::initialize(void) {
     //--------------------------
@@ -93,7 +133,14 @@ bool Logger::SQLogger::initialize(void) {
         return false;
     }// end if (sqlite3_exec(m_db.get(), create_table_sql().data(), nullptr, nullptr, nullptr) != SQLITE_OK)
     //--------------------------
-    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, message) VALUES (?, ?, ?);";
+    if (!has_column(m_db.get(), "logs", "function_name")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN function_name TEXT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }
+    }
+    //--------------------------
+    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message) VALUES (?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     //--------------------------
     if (sqlite3_prepare_v2(m_db.get(), insert_sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -114,6 +161,7 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp TEXT NOT NULL,
             log_level  TEXT NOT NULL,
+            function_name TEXT,
             message TEXT NOT NULL
         );
     )";
@@ -145,12 +193,12 @@ std::string Logger::SQLogger::format_time(const std::optional<std::chrono::syste
     //--------------------------
 }// end std::string std::string_view Logger::SQLogger::format_time(const std::optional<std::chrono::system_clock::time_point>& now)
 //--------------------------------------------------------------
-bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level, std::string_view message) const {
+bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level, std::string_view message, std::optional<std::string_view> function_name) const {
     //--------------------------
     sqlite3_reset(m_insertStmt.get());
     sqlite3_clear_bindings(m_insertStmt.get());
     //--------------------------
-    if (sqlite3_bind_text(m_insertStmt.get(), 1, time.data(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (sqlite3_bind_text(m_insertStmt.get(), 1, time.data(), static_cast<int>(time.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
         std::cerr << "Error binding timestamp: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
     }// end if (sqlite3_bind_text(m_insertStmt.get(), 1, time.data
@@ -161,10 +209,22 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level
         return false;
     }// end if (sqlite3_bind_text(m_insertStmt.get(), 2, level.data(), static_cast<int>(level.size()), SQLITE_TRANSIENT) != SQLITE_OK)
     //--------------------------
-    if (sqlite3_bind_text(m_insertStmt.get(), 3, message.data(), static_cast<int>(message.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (function_name.has_value()) {
+        if (sqlite3_bind_text(m_insertStmt.get(), 3, function_name->data(), static_cast<int>(function_name->size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+            std::cerr << "Error binding function name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }
+    } else {
+        if (sqlite3_bind_null(m_insertStmt.get(), 3) != SQLITE_OK) {
+            std::cerr << "Error binding function name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }
+    }
+    //--------------------------
+    if (sqlite3_bind_text(m_insertStmt.get(), 4, message.data(), static_cast<int>(message.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
         std::cerr << "Error binding message: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
-    }// end if (sqlite3_bind_text(m_insertStmt.get(), 3, message.data(), static_cast<int>(message.size()), SQLITE_TRANSIENT) != SQLITE_OK)
+    }// end if (sqlite3_bind_text(m_insertStmt.get(), 4, message.data(), static_cast<int>(message.size()), SQLITE_TRANSIENT) != SQLITE_OK)
     //--------------------------
     int rc = sqlite3_step(m_insertStmt.get());
     if (rc != SQLITE_DONE) {
@@ -174,5 +234,5 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level
     //--------------------------
     return true;
     //-----------------------------
-}// end bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level, std::string_view message) const
+}// end bool Logger::SQLogger::insert_stmt(std::string_view time, std::string_view level, std::string_view message, std::optional<std::string_view> function_name) const
 //--------------------------------------------------------------

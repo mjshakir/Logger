@@ -31,6 +31,8 @@ namespace Logger {
             static SQLogger& instance(void);
             //--------------------------
             bool log(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            bool log(std::string_view level, std::string_view message, std::string_view function_name, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
@@ -42,7 +44,7 @@ namespace Logger {
             //--------------------------
             std::string format_time(const std::optional<std::chrono::system_clock::time_point>& now) const;
             //--------------------------
-            bool insert_stmt(std::string_view time, std::string_view level, std::string_view message) const;
+            bool insert_stmt(std::string_view time, std::string_view level, std::string_view message, std::optional<std::string_view> function_name = std::nullopt) const;
             //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
