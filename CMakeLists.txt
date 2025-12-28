@@ -193,6 +193,7 @@ set(LOGGER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/Logger.cpp
     ${LOGGER_SOURCE_DIR}/LoggerAPI.cpp
+    ${LOGGER_SOURCE_DIR}/log.cpp
 )
 #------------------------------------------------------------------------------------------
 # Add SQLogger.cpp only if BUILD_LOGGER_SQL is enabled
