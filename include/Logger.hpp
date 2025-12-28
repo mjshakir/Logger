@@ -219,14 +219,22 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                const std::string _container = print_container(container);
+#if LOGGER_HAS_STD_FORMAT
+                //--------------------------
+                const std::string_view _container = print_container(container);
                 std::string _message;
                 _message.reserve(message.size() + 1 + _container.size());
-                _message.append(message);
-                _message.push_back(' ');
-                _message.append(_container);
+                std::format_to(std::back_inserter(_message), "{} {}", message, _container);
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, _message , now);
+                const std::string _formatted_message  = format_message(level, _message, now);
+                
+#else
+                //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                //--------------------------
+                const std::string _formatted_message  = format_message(level, std::string_view(_buffer.data(), _buffer.size()), now);
+#endif
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
@@ -240,20 +248,26 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
-                const std::string _container = print_container(container);
+#if LOGGER_HAS_STD_FORMAT
+                //--------------------------
+                const std::string_view _container = print_container(container);
                 std::string _message;
                 _message.reserve(message.size() + 1 + _container.size());
-                _message.append(message);
-                _message.push_back(' ');
-                _message.append(_container);
+                std::format_to(std::back_inserter(_message), "{} {}", message, _container);
                 //--------------------------
                 const std::string _formatted_message  = format_message(level, function_name, _message, now);
+#else
                 //--------------------------
+                fmt::memory_buffer _buffer;
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                //--------------------------
+                const std::string _formatted_message  = format_message(level, function_name, std::string_view(_buffer.data(), _buffer.size()), now);
+                //--------------------------
+#endif
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
                     level_message(level, _message, _formatted_message, function_name, now);
                 } // end protect the log_file call
-                //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
