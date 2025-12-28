@@ -128,6 +128,19 @@ constexpr std::string_view Logger::Logger::level_log(const LogLevel& level) cons
     //--------------------------
 }// end std::string Logger::Logger::level_log(const LogLevel& level)
 //--------------------------------------------------------------
+std::string Logger::Logger::format_timestamp(const std::tm& timeinfo) const {
+    //--------------------------
+    std::array<char, 32> _buffer;
+    //--------------------------
+    const size_t _len = std::strftime(_buffer.data(), _buffer.size(), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    if (!_len) {
+        return {};
+    }// end if (!_len)
+    //--------------------------
+    return std::string(_buffer.data());
+    //--------------------------
+}// end std::string Logger::Logger::format_timestamp(const std::tm& timeinfo) const
+//--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
     std::tm _timeinfo;
@@ -156,19 +169,6 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
-std::string Logger::Logger::format_timestamp(const std::tm& timeinfo) const {
-    //--------------------------
-    std::array<char, 32> _buffer;
-    //--------------------------
-    const size_t _len = std::strftime(_buffer.data(), _buffer.size(), "%Y-%m-%d %H:%M:%S", &timeinfo);
-    if (!_len) {
-        return {};
-    }// end if (!_len)
-    //--------------------------
-    return std::string(_buffer.data());
-    //--------------------------
-}// end std::string Logger::Logger::format_timestamp(const std::tm& timeinfo) const
-//--------------------------------------------------------------
 void Logger::Logger::log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     std::ofstream _log_file(filename.data(), std::ios_base::app);
@@ -177,15 +177,13 @@ void Logger::Logger::log_file(std::string_view filename, std::string_view messag
         if (!_log_file.tellp()) { // Check if the file is empty
             //--------------------------
             if (now.has_value()) { // Only format time if provided
+                //--------------------------
                 std::tm _timeinfo;
                 get_time(&_timeinfo, now);
+                //--------------------------
 #if LOGGER_HAS_STD_FORMAT
-                // std::tm _timeinfo;
-                // get_time(&_timeinfo, now);
                 _log_file << "Log file created at: " << format_timestamp(_timeinfo) << '\n';
 #else
-                // std::tm _timeinfo;
-                // get_time(&_timeinfo, now);
                 _log_file << fmt::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
 #endif
             }// end if (now)

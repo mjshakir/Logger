@@ -204,11 +204,11 @@ namespace Logger {
             //--------------------------
             constexpr std::string_view level_log(const LogLevel& level) const;
             //--------------------------
+            std::string format_timestamp(const std::tm& timeinfo) const;
+            //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const;
-            //--------------------------
-            std::string format_timestamp(const std::tm& timeinfo) const;
             //--------------------------
             void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
