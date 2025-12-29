@@ -24,19 +24,25 @@ extern "C" {
 //--------------------------------------------------------------
 namespace Logger {
     //--------------------------------------------------------------
+    // Forward declarations LogRecord
+    //--------------------------------------------------------------
+    struct LogRecord;
+    //--------------------------------------------------------------
     class LOGGER_LOCAL SQLogger {
         //--------------------------------------------------------------
         public:
             //--------------------------------------------------------------
             static SQLogger& instance(void);
             //--------------------------
-            bool log(std::string_view level, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
-            //--------------------------
-            bool log(std::string_view level, std::string_view message, std::string_view function_name, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            bool log(const LogRecord& record) const;
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
             bool initialize(void);
+            //--------------------------
+            std::string pragma_name(std::string_view table_name) const;
+            //--------------------------
+            bool has_column(sqlite3* db, std::string_view table_name, std::string_view column_name) const;
             //--------------------------
             constexpr std::string_view create_table_sql(void) const;
             //--------------------------
@@ -44,7 +50,7 @@ namespace Logger {
             //--------------------------
             std::string format_time(const std::optional<std::chrono::system_clock::time_point>& now) const;
             //--------------------------
-            bool insert_stmt(std::string_view time, std::string_view level, std::string_view message, std::optional<std::string_view> function_name = std::nullopt) const;
+            bool insert_stmt(std::string_view time, const LogRecord& record) const;
             //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
