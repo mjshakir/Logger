@@ -194,6 +194,8 @@ set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/Logger.cpp
     ${LOGGER_SOURCE_DIR}/LoggerAPI.cpp
     ${LOGGER_SOURCE_DIR}/Log.cpp
+    ${LOGGER_SOURCE_DIR}/LogRecord.cpp
+    ${LOGGER_SOURCE_DIR}/LogLevel.cpp
 )
 #------------------------------------------------------------------------------------------
 # Add SQLogger.cpp only if BUILD_LOGGER_SQL is enabled
@@ -233,8 +235,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${LOGGER_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:include>
 )
-if(LOGGER_STANDALONE_PROJECT)
-    target_link_libraries(${PROJECT_NAME} PRIVATE common_options)
+if(LOGGER_STANDALONE_PROJECT AND TARGET common_options)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        $<TARGET_PROPERTY:common_options,INTERFACE_COMPILE_OPTIONS>
+    )
 endif()
 if(BUILD_LOGGER_SQL)
     target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
@@ -301,9 +305,10 @@ else()
         target_compile_options(${PROJECT_NAME} PRIVATE 
             "$<$<CONFIG:Debug>:-g>"
             "$<$<CONFIG:Debug>:-O0>"
-            ${SANITIZE_FLAGS}
         )
-        target_link_options(${PROJECT_NAME} PRIVATE ${SANITIZE_FLAGS})
+        
+        target_compile_options(${PROJECT_NAME} PUBLIC ${SANITIZE_FLAGS})
+        target_link_options(${PROJECT_NAME} PUBLIC ${SANITIZE_FLAGS})
     endif()
 endif()
 #------------------------------------------------------------------------------------------
