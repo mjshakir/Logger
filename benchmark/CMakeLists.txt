@@ -31,15 +31,9 @@ endif()
 function(create_benchmark_target TARGET_NAME SOURCE_FILE)
     add_executable(${TARGET_NAME}
         ${SOURCE_FILE}
-        ${PROJECT_SOURCE_DIR}/src/Logger.cpp
     )
 
-    target_include_directories(${TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
-    target_compile_definitions(${TARGET_NAME} PRIVATE
-        HAS_LOGGER_SQL=0
-        LOGGER_HAS_STD_FORMAT=${LOGGER_HAS_STD_FORMAT}
-        LOGGER_HAS_STD_PRINT=${LOGGER_HAS_STD_PRINT}
-    )
+    target_link_libraries(${TARGET_NAME} PRIVATE Logger::logger)
 
     if(TARGET common_options)
         target_link_libraries(${TARGET_NAME} PRIVATE common_options)
@@ -57,10 +51,6 @@ function(create_benchmark_target TARGET_NAME SOURCE_FILE)
         target_link_libraries(${TARGET_NAME} PRIVATE benchmark_main)
     else()
         message(FATAL_ERROR "Google Benchmark target not found (benchmark_main).")
-    endif()
-
-    if(NOT LOGGER_HAS_STD_FORMAT)
-        target_link_libraries(${TARGET_NAME} PRIVATE fmt::fmt)
     endif()
 
     enable_testing()
