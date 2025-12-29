@@ -3,13 +3,13 @@
 //--------------------------------------------------------------
 #include "Logger.hpp"
 //--------------------------------------------------------------
+#include "TimeStamp.hpp"
+//--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-#include <array>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
-#include <ctime>
 #include <iostream>
 //--------------------------------------------------------------
 // Format library
@@ -120,13 +120,13 @@ constexpr std::string_view Logger::Logger::level_log(const LogLevel& level) cons
 //--------------------------------------------------------------
 std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
-    std::tm _timeinfo;
-    get_time(&_timeinfo, now);
+    std::string_view _timestamp;
+    TimeStamp::format_timestamp(now, _timestamp);
     //--------------------------
 #if LOGGER_HAS_STD_FORMAT
-    return std::format("{}{}{}", LogRecord::format_timestamp(_timeinfo).value_or(""), level_print(level), message);
+    return std::format("{}{}{}", _timestamp, level_print(level), message);
 #else
-    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}{}"), _timeinfo, level_print(level), message);
+    return fmt::format(FMT_COMPILE("{}{}{}"), _timestamp, level_print(level), message);
 #endif
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
@@ -135,13 +135,13 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
     const std::string_view _function = format_function_name(function_name);
     //--------------------------
-    std::tm _timeinfo;
-    get_time(&_timeinfo, now);
+    std::string_view _timestamp;
+    TimeStamp::format_timestamp(now, _timestamp);
     //--------------------------
 #if LOGGER_HAS_STD_FORMAT
-    return std::format("{}{}[{}]: {}", LogRecord::format_timestamp(_timeinfo).value_or(""), level_print(level), _function, message);
+    return std::format("{}{}[{}]: {}", _timestamp, level_print(level), _function, message);
 #else
-    return fmt::format(FMT_COMPILE("{:%Y-%m-%d %H:%M:%S}{}[{}]: {}"), _timeinfo, level_print(level), _function, message);
+    return fmt::format(FMT_COMPILE("{}{}[{}]: {}"), _timestamp, level_print(level), _function, message);
 #endif
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
@@ -155,14 +155,9 @@ void Logger::Logger::log_file(std::string_view filename, std::string_view messag
             //--------------------------
             if (now.has_value()) { // Only format time if provided
                 //--------------------------
-                std::tm _timeinfo;
-                get_time(&_timeinfo, now);
-                //--------------------------
-#if LOGGER_HAS_STD_FORMAT
-                _log_file << "Log file created at: " << LogRecord::format_timestamp(_timeinfo).value_or("") << '\n';
-#else
-                _log_file << fmt::format("Log file created at: {:%Y-%m-%d %H:%M:%S}\n", _timeinfo);
-#endif
+                std::string_view _timestamp;
+                TimeStamp::format_timestamp(now.value(), _timestamp);
+                _log_file << "Log file created at: " << _timestamp << '\n';
             }// end if (now)
         } // end if (!_log_file.tellp())
         //--------------------------
@@ -189,18 +184,6 @@ void Logger::Logger::print_file(std::string_view message) const {
     std::cout << message << std::endl;
 #endif
 }// end void Logger::Logger::print_file(std::string_view message) const
-//--------------------------------------------------------------
-void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const {
-    //--------------------------
-    const std::time_t _localtime = (!now.has_value()) ?  std::time(nullptr) : std::chrono::system_clock::to_time_t(now.value());
-    //--------------------------
-#if defined(_WIN32)
-        localtime_s(timeinfo, &_localtime);
-#else
-        localtime_r(&_localtime, timeinfo);
-#endif  
-    //--------------------------
-}// end void Logger::Logger::get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
 void Logger::Logger::logs(const LogRecord& record) const {
     //--------------------------

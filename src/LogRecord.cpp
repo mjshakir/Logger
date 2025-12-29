@@ -3,8 +3,6 @@
 //--------------------------------------------------------------
 #include "LogRecord.hpp"
 //--------------------------------------------------------------
-#include <array>
-//--------------------------------------------------------------
 Logger::LogRecord::LogRecord(void) :    level(LogLevel::INFO),
                                         message(""),
                                         formatted_message(""),
@@ -42,17 +40,4 @@ Logger::LogRecord::LogRecord( const LogLevel& level_,
     : LogRecord(level_, message_, formatted_message_, std::optional<std::string_view>(function_name_), now_) {
     //--------------------------
 }// end LogRecord::LogRecord(...)
-//--------------------------------------------------------------
-std::optional<std::string> Logger::LogRecord::format_timestamp(const std::tm& timeinfo) {
-    //--------------------------
-    std::array<char, 32> buffer;
-    //--------------------------
-    const size_t _len = std::strftime(buffer.data(), buffer.size(), C_TIMESTAMP_FORMAT.data(), &timeinfo);
-    if (!_len) {
-        return std::nullopt;
-    }// end if (!_len)
-    //--------------------------
-    return std::string(buffer.data(), _len);
-    //--------------------------
-}// end std::optional<std::string> Logger::LogRecord::format_timestamp(const std::tm& timeinfo)
 //--------------------------------------------------------------

@@ -5,7 +5,6 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-#include <ctime>
 #include <iostream>
 //--------------------------------------------------------------
 // SQLite library
@@ -15,6 +14,9 @@
 // User Defined library
 //--------------------------------------------------------------
 #include "LogRecord.hpp"
+#include "TimeStamp.hpp"
+//--------------------------------------------------------------
+// Statement Deleter
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
     //--------------------------
@@ -46,7 +48,10 @@ bool Logger::SQLogger::log(const LogRecord& record) const {
         return false;
     }// end if (!m_initialized)
     //--------------------------
-    return insert_stmt(format_time(record.now), record);
+    std::string_view time;
+    TimeStamp::format_timestamp_default(record.now, time);
+    //--------------------------
+    return insert_stmt(time, record);
     //--------------------------
 }// end bool Logger::SQLogger::log(const LogRecord& record) const
 //--------------------------------------------------------------
@@ -158,74 +163,50 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
     //--------------------------
 }// end constexpr std::string_view Logger::SQLogger::create_table_sql(void)
 //--------------------------------------------------------------
-constexpr std::string_view Logger::SQLogger::default_time(void) const {
-    //--------------------------
-    return "0000-00-00 00:00:00";
-    //--------------------------
-}// end constexpr std::string_view Logger::SQLogger::default_time(void)
-//--------------------------------------------------------------
-std::string Logger::SQLogger::format_time(const std::optional<std::chrono::system_clock::time_point>& now) const {
-    //--------------------------
-    if (!now.has_value()) {
-        return std::string(default_time());
-    }// end if (!now.has_value())
-    //--------------------------
-    const std::time_t _localtime = std::chrono::system_clock::to_time_t(now.value());
-    std::tm _timeinfo;
-    //--------------------------
-#if defined(_WIN32)
-    localtime_s(&_timeinfo, &_localtime);
-#else
-    localtime_r(&_localtime, &_timeinfo);
-#endif
-    //--------------------------
-    return LogRecord::format_timestamp(_timeinfo).value_or("");
-    //--------------------------
-}// end std::string std::string_view Logger::SQLogger::format_time(const std::optional<std::chrono::system_clock::time_point>& now)
-//--------------------------------------------------------------
 bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const {
     //--------------------------
-    sqlite3_reset(m_insertStmt.get());
-    sqlite3_clear_bindings(m_insertStmt.get());
+    sqlite3_stmt* stmt = m_insertStmt.get();
+    if (!stmt) {
+        std::cerr << "Insert statement is not initialized." << std::endl;
+        return false;
+    }// end if (!stmt)
+    //--------------------------
+    // When using SQLITE_STATIC, make sure we don't keep references to caller memory.
+    Cleanup _cleanup(stmt);
     //--------------------------
     const std::string_view level = level_name(record.level);
     //--------------------------
-    if (sqlite3_bind_text(m_insertStmt.get(), 1, time.data(), static_cast<int>(time.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (sqlite3_bind_text(stmt, 1, time.data(), static_cast<int>(time.size()), SQLITE_STATIC) != SQLITE_OK) {
         std::cerr << "Error binding timestamp: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
     }// end if (sqlite3_bind_text(m_insertStmt.get(), 1, time.data
     //--------------------------
     // Bind the log level (parameter index 2).
-    if (sqlite3_bind_text(m_insertStmt.get(), 2, level.data(), static_cast<int>(level.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (sqlite3_bind_text(stmt, 2, level.data(), static_cast<int>(level.size()), SQLITE_STATIC) != SQLITE_OK) {
         std::cerr << "Error binding log level: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
     }// end if (sqlite3_bind_text(m_insertStmt.get(), 2, level.data(), static_cast<int>(level.size()), SQLITE_TRANSIENT) != SQLITE_OK)
     //--------------------------
-    if (record.function_name.has_value() && record.function_name->data() != nullptr && !record.function_name->empty()) {
-        if (sqlite3_bind_text(m_insertStmt.get(), 3, record.function_name->data(), static_cast<int>(record.function_name->size()), SQLITE_TRANSIENT) != SQLITE_OK) {
+    if (record.function_name.has_value() and !record.function_name->empty()) {
+        if (sqlite3_bind_text(stmt, 3, record.function_name->data(), static_cast<int>(record.function_name->size()), SQLITE_STATIC) != SQLITE_OK) {
             std::cerr << "Error binding function name: " << sqlite3_errmsg(m_db.get()) << std::endl;
             return false;
-        }
+        }// end if (sqlite3_bind_text(...))
     } else {
-        if (sqlite3_bind_null(m_insertStmt.get(), 3) != SQLITE_OK) {
+        if (sqlite3_bind_null(stmt, 3) != SQLITE_OK) {
             std::cerr << "Error binding function name: " << sqlite3_errmsg(m_db.get()) << std::endl;
             return false;
-        }
-    }
+        }// end  if (sqlite3_bind_null(m_insertStmt.get(), 3) != SQLITE_OK)
+    }// end if (record.function_name.has_value())
     //--------------------------
-    if (record.message.data() != nullptr) {
-        if (sqlite3_bind_text(m_insertStmt.get(), 4, record.message.data(), static_cast<int>(record.message.size()), SQLITE_TRANSIENT) != SQLITE_OK) {
-            std::cerr << "Error binding message: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_bind_text(m_insertStmt.get(), 4, record.message.data(), static_cast<int>(record.message.size()), SQLITE_TRANSIENT) != SQLITE_OK)
-    } else {
-        if (sqlite3_bind_text(m_insertStmt.get(), 4, "", 0, SQLITE_TRANSIENT) != SQLITE_OK) {
-            std::cerr << "Error binding message: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_bind_text(m_insertStmt.get(), 4, "", 0, SQLITE_TRANSIENT) != SQLITE_OK)
-    }// end if (record.message.data() != nullptr)
+    const char* message_ptr = record.message.data();
+    const int message_len = message_ptr ? static_cast<int>(record.message.size()) : 0;
+    if (sqlite3_bind_text(stmt, 4, message_ptr ? message_ptr : "", message_len, SQLITE_STATIC) != SQLITE_OK) {
+        std::cerr << "Error binding message: " << sqlite3_errmsg(m_db.get()) << std::endl;
+        return false;
+    }// end if (sqlite3_bind_text(stmt, 4, message_ptr ? message_ptr : "", message_len, SQLITE_STATIC) != SQLITE_OK)
     //--------------------------
-    int rc = sqlite3_step(m_insertStmt.get());
+    int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         std::cerr << "Error executing insert statement: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
@@ -234,4 +215,17 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
     return true;
     //-----------------------------
 }// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const
+//--------------------------------------------------------------
+// Cleanup struct
+//--------------------------------------------------------------
+Logger::SQLogger::Cleanup::Cleanup(sqlite3_stmt* stmt_) : stmt(stmt_){
+    //-----------------------------
+}// end Logger::SQLogger::Cleanup::Cleanup(sqlite3_stmt* stmt_)
+//--------------------------------------------------------------
+Logger::SQLogger::Cleanup::~Cleanup(void) {
+    if (stmt) {
+        sqlite3_clear_bindings(stmt);
+        sqlite3_reset(stmt);
+    }// end if (stmt)
+}// end Logger::SQLogger::Cleanup::~Cleanup(void)
 //--------------------------------------------------------------
