@@ -9,7 +9,7 @@ endif()
 # Get the name of the folder and use it as the project name
 get_filename_component(PARENT_DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 string(REPLACE " " "_" PARENT_DIR_NAME ${PARENT_DIR_NAME})
-project(${PARENT_DIR_NAME} VERSION 2.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
+project(${PARENT_DIR_NAME} VERSION 2.1.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
 #------------------------------------------------------------------------------------------
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 23)
@@ -196,6 +196,7 @@ set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/Log.cpp
     ${LOGGER_SOURCE_DIR}/LogRecord.cpp
     ${LOGGER_SOURCE_DIR}/LogLevel.cpp
+    ${LOGGER_SOURCE_DIR}/TimeStamp.cpp
 )
 #------------------------------------------------------------------------------------------
 # Add SQLogger.cpp only if BUILD_LOGGER_SQL is enabled
