@@ -1,9 +1,11 @@
 # Ignore the build directory
 build/
+build*/
 
 # Ignore the database
 *.db
 *.db*
+*log.txt
 *_log.txt
 
 # Ignore check
