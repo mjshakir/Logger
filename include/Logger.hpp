@@ -18,6 +18,7 @@
 // User Defined library
 //--------------------------------------------------------------
 #include "LoggerAPI.hpp"
+#include "LogRecord.hpp"
 //--------------------------------------------------------------
 // Format library
 //--------------------------------------------------------------
@@ -58,13 +59,6 @@ namespace Logger {
             //--------------------------
             template <typename T>
             static constexpr bool is_map_v = is_map<T>::value;
-            //--------------------------------------------------------------
-            enum class LogLevel : uint8_t {
-                DEBUG   = 1 << 0,
-                ERROR   = 1 << 1,
-                WARNING = 1 << 2,
-                INFO    = 1 << 3
-            }; // end enum class LogLevel : uint8_t
             //--------------------------------------------------------------
         public:
             //--------------------------------------------------------------
@@ -171,7 +165,7 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, message, _formatted_message, std::nullopt, now);
+                    level_message({level, message, _formatted_message, std::nullopt, now});
                 } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
@@ -191,20 +185,16 @@ namespace Logger {
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, message, _formatted_message, function_name, now);
+                    level_message({level, message, _formatted_message, function_name, now});
                 } // end protect the log_file call
                 //--------------------------
             }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
             //--------------------------
-            void level_message(const LogLevel& level, std::string_view raw_message, std::string_view formatted_message, const std::optional<std::string_view>& function_name = std::nullopt, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
-            //--------------------------
-            constexpr std::string_view level_name(const LogLevel& level) const;
+            void level_message(const LogRecord& record) const;
             //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
             constexpr std::string_view level_log(const LogLevel& level) const;
-            //--------------------------
-            std::string format_timestamp(const std::tm& timeinfo) const;
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
@@ -219,10 +209,10 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
+                std::string _message;
 #if LOGGER_HAS_STD_FORMAT
                 //--------------------------
-                const std::string_view _container = print_container(container);
-                std::string _message;
+                const std::string _container = print_container(container);
                 _message.reserve(message.size() + 1 + _container.size());
                 std::format_to(std::back_inserter(_message), "{} {}", message, _container);
                 //--------------------------
@@ -230,15 +220,17 @@ namespace Logger {
                 
 #else
                 //--------------------------
+                const std::string _container = print_container(container);
                 fmt::memory_buffer _buffer;
-                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, _container);
+                _message.assign(_buffer.data(), _buffer.size());
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, std::string_view(_buffer.data(), _buffer.size()), now);
+                const std::string _formatted_message  = format_message(level, _message, now);
 #endif
                 //--------------------------
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, _message, _formatted_message, std::nullopt, now);
+                    level_message({level, _message, _formatted_message, std::nullopt, now});
                 } // end protect the log_file call
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
@@ -248,25 +240,27 @@ namespace Logger {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
+                std::string _message;
 #if LOGGER_HAS_STD_FORMAT
                 //--------------------------
-                const std::string_view _container = print_container(container);
-                std::string _message;
+                const std::string _container = print_container(container);
                 _message.reserve(message.size() + 1 + _container.size());
                 std::format_to(std::back_inserter(_message), "{} {}", message, _container);
                 //--------------------------
                 const std::string _formatted_message  = format_message(level, function_name, _message, now);
 #else
                 //--------------------------
+                const std::string _container = print_container(container);
                 fmt::memory_buffer _buffer;
-                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, print_container(container));
+                fmt::format_to(std::back_inserter(_buffer), "{} {}", message, _container);
+                _message.assign(_buffer.data(), _buffer.size());
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, std::string_view(_buffer.data(), _buffer.size()), now);
+                const std::string _formatted_message  = format_message(level, function_name, _message, now);
                 //--------------------------
 #endif
                 { // protect the log_file call
                     std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message(level, _message, _formatted_message, function_name, now);
+                    level_message({level, _message, _formatted_message, function_name, now});
                 } // end protect the log_file call
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
@@ -374,7 +368,7 @@ namespace Logger {
             //--------------------------
             void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
-            void logs(const LogLevel& level, [[maybe_unused]] std::string_view raw_message, std::string_view formatted_message, [[maybe_unused]] const std::optional<std::string_view>& function_name = std::nullopt, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            void logs(const LogRecord& record) const;
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
