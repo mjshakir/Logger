@@ -2,11 +2,9 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
-#include <optional>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <chrono>
 //--------------------------------------------------------------
 // User Defined library
 //--------------------------------------------------------------
@@ -46,15 +44,20 @@ namespace Logger {
             //--------------------------
             constexpr std::string_view create_table_sql(void) const;
             //--------------------------
-            constexpr std::string_view default_time(void) const;
-            //--------------------------
-            std::string format_time(const std::optional<std::chrono::system_clock::time_point>& now) const;
-            //--------------------------
             bool insert_stmt(std::string_view time, const LogRecord& record) const;
             //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
             };// end struct SQLiteStmtDeleter
+            //--------------------------
+            struct Cleanup {
+                //--------------------------
+                Cleanup(void) = default;
+                Cleanup(sqlite3_stmt* stmt_);
+                ~Cleanup(void);
+                //--------------------------
+                sqlite3_stmt* stmt;
+            };// end struct Cleanup
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------

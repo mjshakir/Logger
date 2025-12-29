@@ -5,7 +5,6 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <ctime>
 #include <iterator>
 #include <mutex>
 #include <optional>
@@ -365,8 +364,6 @@ namespace Logger {
             }// end std::string print_element(const T& element)
             //--------------------------
             void print_file(std::string_view message) const;
-            //--------------------------
-            void get_time(std::tm* timeinfo, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
             void logs(const LogRecord& record) const;
             //--------------------------------------------------------------
