@@ -59,6 +59,14 @@ namespace Logger {
             template <typename T>
             static constexpr bool is_map_v = is_map<T>::value;
             //--------------------------------------------------------------
+#if LOGGER_HAS_STD_FORMAT && LOGGER_USE_STD_FORMAT_STRING
+            template<typename... Args>
+            using FormatString = std::format_string<Args...>;
+#else
+            template<typename...>
+            using FormatString = std::string_view;
+#endif
+            //--------------------------------------------------------------
         public:
             //--------------------------------------------------------------
             static Logger& instance(void);
@@ -66,22 +74,22 @@ namespace Logger {
             // Logging functions
             //--------------------------
             template<typename... Args>
-            void debug(std::string_view format, Args&&... args) {
+            void debug(FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::DEBUG, format, std::forward<Args>(args)...);
             }// end void debug(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void error(std::string_view format, Args&&... args) {
+            void error(FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::ERROR, format, std::forward<Args>(args)...);
             }// end void error(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void warning(std::string_view format, Args&&... args) {
+            void warning(FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::WARNING, format, std::forward<Args>(args)...);
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void info(std::string_view format, Args&&... args) {
+            void info(FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::INFO, format, std::forward<Args>(args)...);
             } // end void info(std::string_view format, Args&&... args)
             //--------------------------
@@ -108,22 +116,22 @@ namespace Logger {
             // Function to log messages with function name
             //--------------------------
             template<typename... Args>
-            void debug_function(std::string_view function_name, std::string_view format, Args&&... args) {
+            void debug_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::DEBUG, function_name, format, std::forward<Args>(args)...);
             }// end void debug(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void error_function(std::string_view function_name, std::string_view format, Args&&... args) {
+            void error_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::ERROR, function_name, format, std::forward<Args>(args)...);
             }// end void error(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void warning_function(std::string_view function_name, std::string_view format, Args&&... args) {
+            void warning_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::WARNING, function_name, format, std::forward<Args>(args)...);
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void info_function(std::string_view function_name, std::string_view format, Args&&... args) {
+            void info_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
                 log(LogLevel::INFO, function_name, format, std::forward<Args>(args)...);
             } // end void info(std::string_view format, Args&&... args)
             //--------------------------
@@ -150,12 +158,16 @@ namespace Logger {
         protected:
             //--------------------------------------------------------------
             template<typename... Args>
-            void log(const LogLevel& level, std::string_view format, Args&&... args) {
+            void log(const LogLevel& level, FormatString<Args...> format, Args&&... args) {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
 #if LOGGER_HAS_STD_FORMAT
+#if LOGGER_USE_STD_FORMAT_STRING
+                const std::string message = std::format(format, std::forward<Args>(args)...);
+#else
                 const std::string message = std::vformat(format, std::make_format_args(args...));
+#endif
 #else
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
@@ -170,12 +182,16 @@ namespace Logger {
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void log(const LogLevel& level, std::string_view function_name, std::string_view format, Args&&... args) {
+            void log(const LogLevel& level, std::string_view function_name, FormatString<Args...> format, Args&&... args) {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
 #if LOGGER_HAS_STD_FORMAT
+#if LOGGER_USE_STD_FORMAT_STRING
+                const std::string message = std::format(format, std::forward<Args>(args)...);
+#else
                 const std::string message = std::vformat(format, std::make_format_args(args...));
+#endif
 #else
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
