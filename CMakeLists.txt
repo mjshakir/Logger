@@ -11,57 +11,93 @@ get_filename_component(PARENT_DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 string(REPLACE " " "_" PARENT_DIR_NAME ${PARENT_DIR_NAME})
 project(${PARENT_DIR_NAME} VERSION 2.1.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
 #------------------------------------------------------------------------------------------
-# Set the C++ standard
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+# Formatting backend
+option(LOGGER_FORCE_FMT "Use fmt even when std::format is available." ON)
+option(LOGGER_USE_STD_FORMAT_STRING "Use std::format_string/std::format for Logger APIs (disables runtime format strings)." ON)
 #------------------------------------------------------------------------------------------
 # Detect C++23 library features (std::format / std::print)
 include(CheckCXXSourceCompiles)
 
-set(_LOGGER_REQUIRED_FLAGS_SAVE "${CMAKE_REQUIRED_FLAGS}")
-if(MSVC)
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} /std:c++latest")
-else()
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++23")
-endif()
+function(logger_try_compile_cxx23 _result_var _source)
+    if(DEFINED ${_result_var})
+        return()
+    endif()
 
-check_cxx_source_compiles([==[
+    set(_logger_try_dir "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/CMakeTmp/${_result_var}")
+    file(MAKE_DIRECTORY "${_logger_try_dir}")
+    file(WRITE "${_logger_try_dir}/main.cpp" "${_source}\n")
+
+    message(CHECK_START "Performing Test ${_result_var}")
+    try_compile(_logger_try_ok
+        "${_logger_try_dir}/build"
+        SOURCES "${_logger_try_dir}/main.cpp"
+        CMAKE_FLAGS
+            "-DCMAKE_CXX_STANDARD=23"
+            "-DCMAKE_CXX_STANDARD_REQUIRED=ON"
+            "-DCMAKE_CXX_EXTENSIONS=OFF"
+    )
+    if(_logger_try_ok)
+        message(CHECK_PASS "Success")
+        set(${_result_var} 1 CACHE INTERNAL "Test ${_result_var}")
+    else()
+        message(CHECK_FAIL "Failed")
+        set(${_result_var} 0 CACHE INTERNAL "Test ${_result_var}")
+    endif()
+endfunction()
+#------------------------------------------------------------------------------------------
+logger_try_compile_cxx23(LOGGER_HAS_STD_FORMAT [==[
     #include <format>
     #include <string>
+
     int main() {
         auto s = std::format("{}", 42);
         return static_cast<int>(s.size() == 0);
     }
-]==] LOGGER_HAS_STD_FORMAT)
-
+]==])
+#---------------------------------------------
 if(LOGGER_HAS_STD_FORMAT)
-    check_cxx_source_compiles([==[
+    logger_try_compile_cxx23(LOGGER_HAS_STD_PRINT [==[
         #include <print>
+
         int main() {
             std::print("{}", 42);
             return 0;
         }
-    ]==] LOGGER_HAS_STD_PRINT)
+    ]==])
 endif()
-
-set(CMAKE_REQUIRED_FLAGS "${_LOGGER_REQUIRED_FLAGS_SAVE}")
-unset(_LOGGER_REQUIRED_FLAGS_SAVE)
-
+#------------------------------------------------------------------------------------------
 if(LOGGER_HAS_STD_FORMAT)
     set(LOGGER_HAS_STD_FORMAT 1)
 else()
     set(LOGGER_HAS_STD_FORMAT 0)
 endif()
-
+#---------------------------------------------
 if(LOGGER_HAS_STD_PRINT)
     set(LOGGER_HAS_STD_PRINT 1)
 else()
     set(LOGGER_HAS_STD_PRINT 0)
 endif()
+#---------------------------------------------
 
+if(LOGGER_FORCE_FMT)
+    set(LOGGER_HAS_STD_FORMAT 0)
+    set(LOGGER_HAS_STD_PRINT 0)
+endif()
+#---------------------------------------------
+if(LOGGER_HAS_STD_FORMAT)
+    set(CMAKE_CXX_STANDARD 23)
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
+#---------------------------------------------
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+#------------------------------------------------------------------------------------------
+message(STATUS "LOGGER_FORCE_FMT: ${LOGGER_FORCE_FMT}")
+message(STATUS "LOGGER_USE_STD_FORMAT_STRING: ${LOGGER_USE_STD_FORMAT_STRING}")
 message(STATUS "LOGGER_HAS_STD_FORMAT: ${LOGGER_HAS_STD_FORMAT}")
 message(STATUS "LOGGER_HAS_STD_PRINT: ${LOGGER_HAS_STD_PRINT}")
+message(STATUS "CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}")
 #------------------------------------------------------------------------------------------
 # Print out the build type
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
@@ -229,6 +265,7 @@ endif()
 target_compile_definitions(${PROJECT_NAME} PUBLIC
     LOGGER_HAS_STD_FORMAT=${LOGGER_HAS_STD_FORMAT}
     LOGGER_HAS_STD_PRINT=${LOGGER_HAS_STD_PRINT}
+    LOGGER_USE_STD_FORMAT_STRING=$<BOOL:${LOGGER_USE_STD_FORMAT_STRING}>
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_LOGGER_SQL=${HAS_LOGGER_SQL})
