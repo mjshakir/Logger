@@ -29,6 +29,10 @@
     #endif
 #endif
 
+#ifndef LOGGER_USE_STD_FORMAT_STRING
+    #define LOGGER_USE_STD_FORMAT_STRING 0
+#endif
+
 #ifndef LOGGER_HAS_STD_PRINT
     #if defined(__cpp_lib_print) && (__cpp_lib_print >= 202207L)
         #define LOGGER_HAS_STD_PRINT 1
