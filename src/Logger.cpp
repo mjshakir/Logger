@@ -12,6 +12,13 @@
 #include <fstream>
 #include <iostream>
 //--------------------------------------------------------------
+// fmt library (only when std::format isn't used)
+//--------------------------------------------------------------
+#if !LOGGER_HAS_STD_FORMAT
+    #include <fmt/color.h>
+    #include <fmt/compile.h>
+#endif
+//--------------------------------------------------------------
 // Format library
 //--------------------------------------------------------------
 #if LOGGER_HAS_STD_PRINT
