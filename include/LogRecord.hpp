@@ -37,7 +37,6 @@ namespace Logger {
             std::string_view formatted_message;
             std::optional<std::string_view> function_name;
             std::optional<std::chrono::system_clock::time_point> now;
-            //--------------------------------------------------------------
         //--------------------------------------------------------------
     }; // end struct LogRecord
     //--------------------------------------------------------------

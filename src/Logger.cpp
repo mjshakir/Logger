@@ -34,9 +34,6 @@
 // Definitions
 //--------------------------------------------------------------
 #if LOGGER_HAS_STD_FORMAT
-    // #define ANSI_COLOR_RED              "\x1b[31m"
-    // #define ANSI_COLOR_YELLOW           "\x1b[33m"
-    // #define ANSI_COLOR_RESET            "\x1b[0m"
     constexpr std::string_view ANSI_COLOR_RED    = "\x1b[31m";
     constexpr std::string_view ANSI_COLOR_YELLOW = "\x1b[33m";
     constexpr std::string_view ANSI_COLOR_GREY   = "\x1b[90m";
