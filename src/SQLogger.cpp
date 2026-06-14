@@ -98,7 +98,21 @@ bool Logger::SQLogger::initialize(void) {
         }// end if (sqlite3_exec(...))
     }// end if (!has_column(m_db.get(), "logs", "function_name"))
     //--------------------------
-    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message) VALUES (?, ?, ?, ?);";
+    if (!has_column(m_db.get(), "logs", "line_number")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN line_number INTEGER;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_exec(...))
+    }// end if (!has_column(m_db.get(), "logs", "line_number"))
+    //--------------------------
+    if (!has_column(m_db.get(), "logs", "file_name")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN file_name TEXT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_exec(...))
+    }// end if (!has_column(m_db.get(), "logs", "file_name"))
+    //--------------------------
+    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message, line_number, file_name) VALUES (?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     //--------------------------
     if (sqlite3_prepare_v2(m_db.get(), insert_sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -157,6 +171,8 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
             timestamp TEXT NOT NULL,
             log_level  TEXT NOT NULL,
             function_name TEXT,
+            file_name TEXT,
+            line_number INTEGER,
             message TEXT NOT NULL
         );
     )";
@@ -205,6 +221,30 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
         std::cerr << "Error binding message: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
     }// end if (sqlite3_bind_text(stmt, 4, message_ptr ? message_ptr : "", message_len, SQLITE_STATIC) != SQLITE_OK)
+    //--------------------------
+    if (record.line.has_value()) {
+        if (sqlite3_bind_int64(stmt, 5, static_cast<sqlite3_int64>(record.line.value())) != SQLITE_OK) {
+            std::cerr << "Error binding line number: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_int64(stmt, 5, static_cast<sqlite3_int64>(record.line.value())) != SQLITE_OK)
+    } else {
+        if (sqlite3_bind_null(stmt, 5) != SQLITE_OK) {
+            std::cerr << "Error binding line number: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_null(stmt, 5) != SQLITE_OK)
+    }// end if (record.line.has_value())
+    //--------------------------
+    if (record.file.has_value() and !record.file->empty()) {
+        if (sqlite3_bind_text(stmt, 6, record.file->data(), static_cast<int>(record.file->size()), SQLITE_STATIC) != SQLITE_OK) {
+            std::cerr << "Error binding file name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_text(...))
+    } else {
+        if (sqlite3_bind_null(stmt, 6) != SQLITE_OK) {
+            std::cerr << "Error binding file name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_null(stmt, 6) != SQLITE_OK)
+    }// end if (record.file.has_value() and !record.file->empty())
     //--------------------------
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {

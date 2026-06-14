@@ -71,7 +71,7 @@ static void BM_Logger_DebugFunction_FormatBytes(benchmark::State& state) {
     std::string payload(static_cast<std::size_t>(state.range(0)), 'x');
 
     for (auto _ : state) {
-        logger.debug_function("LoggerBenchmark::DebugFunction", "{}", payload);
+        logger.debug_function(__FILE__, "LoggerBenchmark::DebugFunction", __LINE__, "{}", payload);
         benchmark::DoNotOptimize(payload);
     }
 

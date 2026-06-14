@@ -135,20 +135,21 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
-std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const {
+std::string Logger::Logger::format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
     const std::string_view _function = format_function_name(function_name);
+    const std::string_view _file = format_file_name(file);
     //--------------------------
     std::string_view _timestamp;
     TimeStamp::format_timestamp(now, _timestamp);
     //--------------------------
 #if LOGGER_HAS_STD_FORMAT
-    return std::format("{}{}[{}]: {}", _timestamp, level_print(level), _function, message);
+    return std::format("{}{}[{}::{}:{}]: {}", _timestamp, level_print(level), _file, _function, line, message);
 #else
-    return fmt::format(FMT_COMPILE("{}{}[{}]: {}"), _timestamp, level_print(level), _function, message);
+    return fmt::format(FMT_COMPILE("{}{}[{}::{}:{}]: {}"), _timestamp, level_print(level), _file, _function, line, message);
 #endif
     //--------------------------
-}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
+}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
 void Logger::Logger::log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
@@ -178,6 +179,14 @@ constexpr std::string_view Logger::Logger::format_function_name(std::string_view
     return (_pos != std::string_view::npos) ? function_name.substr(_pos + 2) : function_name;
     //--------------------------
 }// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
+//--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::format_file_name(std::string_view file_name) const {
+    //--------------------------
+    // Strip the directory path and return only the base file name (handles both '/' and '\\')
+    const size_t _pos = file_name.find_last_of("/\\");
+    return (_pos != std::string_view::npos) ? file_name.substr(_pos + 1) : file_name;
+    //--------------------------
+}// end std::string Logger::Logger::format_file_name(std::string_view file_name) const
 //--------------------------------------------------------------
 void Logger::Logger::print_file(std::string_view message) const {
 #if LOGGER_HAS_STD_PRINT
