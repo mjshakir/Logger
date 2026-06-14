@@ -9,7 +9,7 @@ endif()
 # Get the name of the folder and use it as the project name
 get_filename_component(PARENT_DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 string(REPLACE " " "_" PARENT_DIR_NAME ${PARENT_DIR_NAME})
-project(${PARENT_DIR_NAME} VERSION 2.1.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
+project(${PARENT_DIR_NAME} VERSION 2.3.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
 #------------------------------------------------------------------------------------------
 # Formatting backend
 option(LOGGER_FORCE_FMT "Use fmt even when std::format is available." ON)
