@@ -58,3 +58,4 @@ function(create_benchmark_target TARGET_NAME SOURCE_FILE)
 endfunction()
 
 create_benchmark_target(${PROJECT_NAME}_benchmark ${CMAKE_CURRENT_LIST_DIR}/LoggerBenchmark.cpp)
+create_benchmark_target(${PROJECT_NAME}_latency_benchmark ${CMAKE_CURRENT_LIST_DIR}/LoggerLatencyBenchmark.cpp)
