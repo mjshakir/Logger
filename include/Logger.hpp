@@ -5,8 +5,8 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <iosfwd>
 #include <iterator>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -174,10 +174,7 @@ namespace Logger {
                 //--------------------------
                 const std::string _formatted_message = format_message(level, message, now);
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, message, _formatted_message, now});
-                } // end protect the log_file call
+                level_message({level, message, _formatted_message, now});
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
             //--------------------------
@@ -198,14 +195,13 @@ namespace Logger {
                 //--------------------------
                 const std::string _formatted_message = format_message(level, file, function_name, line, message, now);
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, message, _formatted_message, now, file, function_name, line});
-                } // end protect the log_file call
+                level_message({level, message, _formatted_message, now, file, function_name, line});
                 //--------------------------
             }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
             //--------------------------
             void level_message(const LogRecord& record) const;
+            //--------------------------
+            void sync_line(std::ostream& stream, std::string_view prefix, std::string_view message, std::string_view suffix) const;
             //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
@@ -245,10 +241,7 @@ namespace Logger {
                 const std::string _formatted_message  = format_message(level, _message, now);
 #endif
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, _message, _formatted_message, now});
-                } // end protect the log_file call
+                level_message({level, _message, _formatted_message, now});
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
@@ -275,10 +268,7 @@ namespace Logger {
                 const std::string _formatted_message  = format_message(level, file, function_name, line, _message, now);
                 //--------------------------
 #endif
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, _message, _formatted_message, now, file, function_name, line});
-                } // end protect the log_file call
+                level_message({level, _message, _formatted_message, now, file, function_name, line});
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
@@ -394,8 +384,6 @@ namespace Logger {
             Logger& operator=(const Logger&)    = delete;
             Logger(Logger&&)                    = delete;
             Logger& operator=(Logger&&)         = delete;
-            //--------------------------
-            std::mutex m_mutex;
         //--------------------------------------------------------------
     }; // end class Logger
     //--------------------------------------------------------------
