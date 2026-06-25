@@ -1,5 +1,5 @@
 //--------------------------------------------------------------
-// Main Header 
+// Main Header
 //--------------------------------------------------------------
 #include "SQLogger.hpp"
 //--------------------------------------------------------------
@@ -16,30 +16,12 @@
 #include "LogRecord.hpp"
 #include "TimeStamp.hpp"
 //--------------------------------------------------------------
-// Statement Deleter
-//--------------------------------------------------------------
-void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
-    //--------------------------
-    if (stmt) {
-        sqlite3_finalize(stmt);
-    }// end if (stmt)
-    //--------------------------
-}// end void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const
+// Public
 //--------------------------------------------------------------
 Logger::SQLogger& Logger::SQLogger::instance(void) {
     static SQLogger instance;
     return instance;
 }// end Logger::SQLogger& Logger::SQLogger::instance(void)
-//--------------------------------------------------------------
-Logger::SQLogger::SQLogger(void) :  m_db(nullptr, &sqlite3_close),
-                                    m_insertStmt(nullptr),
-                                    m_initialized(initialize()) {
-    //--------------------------
-}// end Logger::SQLogger::SQLogger(void)
-//--------------------------------------------------------------
-Logger::SQLogger::~SQLogger(void) {
-    //--------------------------
-}// end Logger::SQLogger::~SQLogger(void)
 //--------------------------------------------------------------
 bool Logger::SQLogger::log(const LogRecord& record) const {
     //--------------------------
@@ -54,6 +36,8 @@ bool Logger::SQLogger::log(const LogRecord& record) const {
     return insert_stmt(time, record);
     //--------------------------
 }// end bool Logger::SQLogger::log(const LogRecord& record) const
+//--------------------------------------------------------------
+// Protected
 //--------------------------------------------------------------
 bool Logger::SQLogger::initialize(void) {
     //--------------------------
@@ -75,6 +59,11 @@ bool Logger::SQLogger::initialize(void) {
     }// end if (sqlite3_open("logs.db", &db_raw) != SQLITE_OK)
     //--------------------------
     m_db.reset(db_raw);
+    //--------------------------
+    // Cheap insurance: a single shared connection already serializes its own autocommit writes
+    // (each INSERT runs inside one mutex-held sqlite3_step), so this only matters if an external
+    // process opens logs.db concurrently. No retry loop is needed.
+    sqlite3_busy_timeout(m_db.get(), 3000);
     //--------------------------
     // Optional: Improve performance by tweaking PRAGMA settings.
     //--------------------------
@@ -98,15 +87,19 @@ bool Logger::SQLogger::initialize(void) {
         }// end if (sqlite3_exec(...))
     }// end if (!has_column(m_db.get(), "logs", "function_name"))
     //--------------------------
-    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message) VALUES (?, ?, ?, ?);";
-    sqlite3_stmt* stmt = nullptr;
+    if (!has_column(m_db.get(), "logs", "line_number")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN line_number INTEGER;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_exec(...))
+    }// end if (!has_column(m_db.get(), "logs", "line_number"))
     //--------------------------
-    if (sqlite3_prepare_v2(m_db.get(), insert_sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
-        std::cerr << "Error preparing insert statement: " << sqlite3_errmsg(m_db.get()) << std::endl;
-        return false;
-    }// end if (sqlite3_prepare_v2(m_db.get(), insert_sql, -1, &stmt, nullptr) != SQLITE_OK)
-    //--------------------------
-    m_insertStmt.reset(stmt);
+    if (!has_column(m_db.get(), "logs", "file_name")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN file_name TEXT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_exec(...))
+    }// end if (!has_column(m_db.get(), "logs", "file_name"))
     //--------------------------
     return true;
     //--------------------------
@@ -157,6 +150,8 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
             timestamp TEXT NOT NULL,
             log_level  TEXT NOT NULL,
             function_name TEXT,
+            file_name TEXT,
+            line_number INTEGER,
             message TEXT NOT NULL
         );
     )";
@@ -165,7 +160,8 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
 //--------------------------------------------------------------
 bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const {
     //--------------------------
-    sqlite3_stmt* stmt = m_insertStmt.get();
+    thread_local std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> tls_stmt = prepare_insert();
+    sqlite3_stmt* stmt = tls_stmt.get();
     if (!stmt) {
         std::cerr << "Insert statement is not initialized." << std::endl;
         return false;
@@ -206,6 +202,30 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
         return false;
     }// end if (sqlite3_bind_text(stmt, 4, message_ptr ? message_ptr : "", message_len, SQLITE_STATIC) != SQLITE_OK)
     //--------------------------
+    if (record.line.has_value()) {
+        if (sqlite3_bind_int64(stmt, 5, static_cast<sqlite3_int64>(record.line.value())) != SQLITE_OK) {
+            std::cerr << "Error binding line number: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_int64(stmt, 5, static_cast<sqlite3_int64>(record.line.value())) != SQLITE_OK)
+    } else {
+        if (sqlite3_bind_null(stmt, 5) != SQLITE_OK) {
+            std::cerr << "Error binding line number: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_null(stmt, 5) != SQLITE_OK)
+    }// end if (record.line.has_value())
+    //--------------------------
+    if (record.file.has_value() and !record.file->empty()) {
+        if (sqlite3_bind_text(stmt, 6, record.file->data(), static_cast<int>(record.file->size()), SQLITE_STATIC) != SQLITE_OK) {
+            std::cerr << "Error binding file name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_text(...))
+    } else {
+        if (sqlite3_bind_null(stmt, 6) != SQLITE_OK) {
+            std::cerr << "Error binding file name: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_null(stmt, 6) != SQLITE_OK)
+    }// end if (record.file.has_value() and !record.file->empty())
+    //--------------------------
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         std::cerr << "Error executing insert statement: " << sqlite3_errmsg(m_db.get()) << std::endl;
@@ -216,7 +236,13 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
     //-----------------------------
 }// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const
 //--------------------------------------------------------------
-// Cleanup struct
+void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
+    //--------------------------
+    if (stmt) {
+        sqlite3_finalize(stmt);
+    }// end if (stmt)
+    //--------------------------
+}// end void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const
 //--------------------------------------------------------------
 Logger::SQLogger::Cleanup::Cleanup(sqlite3_stmt* stmt_) : stmt(stmt_){
     //-----------------------------
@@ -228,4 +254,33 @@ Logger::SQLogger::Cleanup::~Cleanup(void) {
         sqlite3_reset(stmt);
     }// end if (stmt)
 }// end Logger::SQLogger::Cleanup::~Cleanup(void)
+//--------------------------------------------------------------
+std::unique_ptr<sqlite3_stmt, Logger::SQLogger::SQLiteStmtDeleter> Logger::SQLogger::prepare_insert(void) const {
+    //--------------------------
+    using StmtPtr = std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter>;
+    //--------------------------
+    if (!m_initialized or !m_db) { // guard against a failed / not-yet-opened connection
+        return StmtPtr(nullptr);
+    }// end if (!m_initialized or !m_db)
+    //--------------------------
+    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message, line_number, file_name) VALUES (?, ?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    //--------------------------
+    if (sqlite3_prepare_v2(m_db.get(), insert_sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Error preparing insert statement: " << sqlite3_errmsg(m_db.get()) << std::endl;
+        return StmtPtr(nullptr);
+    }// end if (sqlite3_prepare_v2(...) != SQLITE_OK)
+    //--------------------------
+    return StmtPtr(stmt);
+    //--------------------------
+}// end std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> Logger::SQLogger::prepare_insert(void) const
+//--------------------------------------------------------------
+// Private
+//--------------------------------------------------------------
+Logger::SQLogger::SQLogger(void) :  m_db(nullptr, &sqlite3_close_v2),
+                                    m_initialized(initialize()) {
+    //--------------------------
+}// end Logger::SQLogger::SQLogger(void)
+//--------------------------------------------------------------
+Logger::SQLogger::~SQLogger(void) = default;
 //--------------------------------------------------------------

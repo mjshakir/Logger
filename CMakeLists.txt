@@ -9,7 +9,7 @@ endif()
 # Get the name of the folder and use it as the project name
 get_filename_component(PARENT_DIR_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 string(REPLACE " " "_" PARENT_DIR_NAME ${PARENT_DIR_NAME})
-project(${PARENT_DIR_NAME} VERSION 2.1.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
+project(${PARENT_DIR_NAME} VERSION 2.3.0 DESCRIPTION "A Logger function library" LANGUAGES CXX)
 #------------------------------------------------------------------------------------------
 # Formatting backend
 option(LOGGER_FORCE_FMT "Use fmt even when std::format is available." ON)
@@ -188,6 +188,7 @@ message(STATUS "BUILD_LOGGER_SHARED_LIBS: ${BUILD_LOGGER_SHARED_LIBS}")
 #---------------------------------------
 option(BUILD_LOGGER_EXAMPLE "Build Logger example" ${LOGGER_STANDALONE_PROJECT})
 option(BUILD_LOGGER_BENCHMARKS "Build Logger benchmarks" ${LOGGER_STANDALONE_PROJECT})
+option(BUILD_LOGGER_TESTS "Build Logger unit tests" ${LOGGER_STANDALONE_PROJECT})
 #---------------------------------------
 option(LOGGER_DEBUG "Enable Logger debug messages" OFF)
 # Automatically enable LOGGER_DEBUG if the build type is Debug
@@ -309,12 +310,27 @@ if(BUILD_LOGGER_EXAMPLE)
     endif()
 endif()
 #------------------------------------------------------------------------------------------
+# Enable CTest at the top level so `ctest` from the build root discovers the benchmark/
+# subdirectory tests (e.g. the concurrency-correctness harness).
+if(LOGGER_STANDALONE_PROJECT)
+    enable_testing()
+endif()
+#------------------------------------------------------------------------------------------
 # Benchmarks
 if(BUILD_LOGGER_BENCHMARKS)
     if(LOGGER_STANDALONE_PROJECT)
         add_subdirectory(benchmark)
     else()
         message(WARNING "BUILD_LOGGER_BENCHMARKS is only supported when building Logger standalone; skipping.")
+    endif()
+endif()
+#------------------------------------------------------------------------------------------
+# Unit tests
+if(BUILD_LOGGER_TESTS)
+    if(LOGGER_STANDALONE_PROJECT)
+        add_subdirectory(tests)
+    else()
+        message(WARNING "BUILD_LOGGER_TESTS is only supported when building Logger standalone; skipping.")
     endif()
 endif()
 #------------------------------------------------------------------------------------------

@@ -5,8 +5,8 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <iosfwd>
 #include <iterator>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -116,43 +116,43 @@ namespace Logger {
             // Function to log messages with function name
             //--------------------------
             template<typename... Args>
-            void debug_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
-                log(LogLevel::DEBUG, function_name, format, std::forward<Args>(args)...);
+            void debug_function(std::string_view file, std::string_view function_name, std::size_t line, FormatString<Args...> format, Args&&... args) {
+                log(LogLevel::DEBUG, file, function_name, line, format, std::forward<Args>(args)...);
             }// end void debug(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void error_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
-                log(LogLevel::ERROR, function_name, format, std::forward<Args>(args)...);
+            void error_function(std::string_view file, std::string_view function_name, std::size_t line, FormatString<Args...> format, Args&&... args) {
+                log(LogLevel::ERROR, file, function_name, line, format, std::forward<Args>(args)...);
             }// end void error(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void warning_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
-                log(LogLevel::WARNING, function_name, format, std::forward<Args>(args)...);
+            void warning_function(std::string_view file, std::string_view function_name, std::size_t line, FormatString<Args...> format, Args&&... args) {
+                log(LogLevel::WARNING, file, function_name, line, format, std::forward<Args>(args)...);
             } // end void warning(std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void info_function(std::string_view function_name, FormatString<Args...> format, Args&&... args) {
-                log(LogLevel::INFO, function_name, format, std::forward<Args>(args)...);
+            void info_function(std::string_view file, std::string_view function_name, std::size_t line, FormatString<Args...> format, Args&&... args) {
+                log(LogLevel::INFO, file, function_name, line, format, std::forward<Args>(args)...);
             } // end void info(std::string_view format, Args&&... args)
             //--------------------------
             template<typename T>
-            void debug_stream_function(std::string_view function_name, std::string_view message, const T& container) {
-                log_stream(LogLevel::DEBUG, function_name, message, container);
+            void debug_stream_function(std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const T& container) {
+                log_stream(LogLevel::DEBUG, file, function_name, line, message, container);
             } // end void debug_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void error_stream_function(std::string_view function_name, std::string_view message, const T& container) {
-                log_stream(LogLevel::ERROR, function_name, message, container);
+            void error_stream_function(std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const T& container) {
+                log_stream(LogLevel::ERROR, file, function_name, line, message, container);
             } // end void error_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void warning_stream_function(std::string_view function_name, std::string_view message, const T& container) {
-                log_stream(LogLevel::WARNING, function_name, message, container);
+            void warning_stream_function(std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const T& container) {
+                log_stream(LogLevel::WARNING, file, function_name, line, message, container);
             } // end void warning_stream(std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void info_stream_function(std::string_view function_name, std::string_view message, const T& container) {
-                log_stream(LogLevel::INFO, function_name, message, container);
+            void info_stream_function(std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const T& container) {
+                log_stream(LogLevel::INFO, file, function_name, line, message, container);
             } // end void info_stream(std::string_view message, const T& container)
             //--------------------------------------------------------------
         protected:
@@ -174,15 +174,12 @@ namespace Logger {
                 //--------------------------
                 const std::string _formatted_message = format_message(level, message, now);
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, message, _formatted_message, std::nullopt, now});
-                } // end protect the log_file call
+                level_message({level, message, _formatted_message, now});
                 //--------------------------
             }// end void log(LogLevel level, std::string_view format, Args&&... args)
             //--------------------------
             template<typename... Args>
-            void log(const LogLevel& level, std::string_view function_name, FormatString<Args...> format, Args&&... args) {
+            void log(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, FormatString<Args...> format, Args&&... args) {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
@@ -196,16 +193,15 @@ namespace Logger {
                 const std::string message = fmt::format(fmt::runtime(format), std::forward<Args>(args)...);
 #endif
                 //--------------------------
-                const std::string _formatted_message = format_message(level, function_name, message, now);
+                const std::string _formatted_message = format_message(level, file, function_name, line, message, now);
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, message, _formatted_message, function_name, now});
-                } // end protect the log_file call
+                level_message({level, message, _formatted_message, now, file, function_name, line});
                 //--------------------------
             }// end void log(LogLevel level, std::string_view function_name, std::string_view format, Args&&... args)
             //--------------------------
             void level_message(const LogRecord& record) const;
+            //--------------------------
+            void sync_line(std::ostream& stream, std::string_view prefix, std::string_view message, std::string_view suffix) const;
             //--------------------------
             constexpr std::string_view level_print(const LogLevel& level) const;
             //--------------------------
@@ -213,11 +209,13 @@ namespace Logger {
             //--------------------------
             std::string format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
-            std::string format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const;
+            std::string format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
             void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
             //--------------------------
             constexpr std::string_view format_function_name(std::string_view function_name) const;
+            //--------------------------
+            constexpr std::string_view format_file_name(std::string_view file_name) const;
             //--------------------------
             template<typename T>
             void log_stream(const LogLevel& level, std::string_view message, const T& container) {
@@ -243,15 +241,12 @@ namespace Logger {
                 const std::string _formatted_message  = format_message(level, _message, now);
 #endif
                 //--------------------------
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, _message, _formatted_message, std::nullopt, now});
-                } // end protect the log_file call
+                level_message({level, _message, _formatted_message, now});
                 //--------------------------
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
-            void log_stream(const LogLevel& level, std::string_view function_name, std::string_view message, const T& container) {
+            void log_stream(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const T& container) {
                 //--------------------------
                 const auto now = std::chrono::system_clock::now();
                 //--------------------------
@@ -262,7 +257,7 @@ namespace Logger {
                 _message.reserve(message.size() + 1 + _container.size());
                 std::format_to(std::back_inserter(_message), "{} {}", message, _container);
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, _message, now);
+                const std::string _formatted_message  = format_message(level, file, function_name, line, _message, now);
 #else
                 //--------------------------
                 const std::string _container = print_container(container);
@@ -270,13 +265,10 @@ namespace Logger {
                 fmt::format_to(std::back_inserter(_buffer), "{} {}", message, _container);
                 _message.assign(_buffer.data(), _buffer.size());
                 //--------------------------
-                const std::string _formatted_message  = format_message(level, function_name, _message, now);
+                const std::string _formatted_message  = format_message(level, file, function_name, line, _message, now);
                 //--------------------------
 #endif
-                { // protect the log_file call
-                    std::lock_guard<std::mutex> lock(m_mutex);
-                    level_message({level, _message, _formatted_message, function_name, now});
-                } // end protect the log_file call
+                level_message({level, _message, _formatted_message, now, file, function_name, line});
             }// end void log_stream(LogLevel level, std::string_view message, const T& container)
             //--------------------------
             template<typename T>
@@ -392,8 +384,6 @@ namespace Logger {
             Logger& operator=(const Logger&)    = delete;
             Logger(Logger&&)                    = delete;
             Logger& operator=(Logger&&)         = delete;
-            //--------------------------
-            std::mutex m_mutex;
         //--------------------------------------------------------------
     }; // end class Logger
     //--------------------------------------------------------------

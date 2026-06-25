@@ -97,25 +97,25 @@
 //--------------------------------------------------------------
 // Logging With Function Name and Class
 //--------------------------------------------------------------
-#define LOG_ERROR_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-#define LOG_WARNING_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-#define LOG_INFO_FUNCTION(msg, ...) Logger::Logger::instance().info_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-#define LOG_ERROR_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
-#define LOG_WARNING_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
-#define LOG_INFO_FUNCTION_STREAM(msg, container) Logger::Logger::instance().info_stream_function(FUNC_NAME, msg, container)
+#define LOG_ERROR_FUNCTION(msg, ...) Logger::Logger::instance().error_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_WARNING_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_INFO_FUNCTION(msg, ...) Logger::Logger::instance().info_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+#define LOG_ERROR_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
+#define LOG_WARNING_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
+#define LOG_INFO_FUNCTION_STREAM(msg, container) Logger::Logger::instance().info_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
 //--------------------------------------------------------------
 // **Logging macros for conditional logging with DEBUG**
 //--------------------------------------------------------------
 #ifdef LOGGER_DEBUG
-    #define LOG_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().debug_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-    #define LOG_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().debug_stream_function(FUNC_NAME, msg, container)
+    #define LOG_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().debug_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+    #define LOG_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().debug_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
     //--------------------------
     // **Newly added macros**
-    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-    #define LOG_WARNING_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(FUNC_NAME, msg, container)
+    #define LOG_WARNING_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().warning_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+    #define LOG_WARNING_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().warning_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
     //--------------------------
-    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().error_function(FUNC_NAME, msg __VA_OPT__(,) __VA_ARGS__)
-    #define LOG_ERROR_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(FUNC_NAME, msg, container)
+    #define LOG_ERROR_DEBUG_FUNCTION(msg, ...) Logger::Logger::instance().error_function(__FILE__, FUNC_NAME, __LINE__, msg __VA_OPT__(,) __VA_ARGS__)
+    #define LOG_ERROR_DEBUG_FUNCTION_STREAM(msg, container) Logger::Logger::instance().error_stream_function(__FILE__, FUNC_NAME, __LINE__, msg, container)
 #else
     #define LOG_DEBUG_FUNCTION(msg, ...)
     #define LOG_DEBUG_FUNCTION_STREAM(msg, container)
@@ -133,7 +133,7 @@
 #define LOG_ONCE_FUNCTION_IMPL(level_method, flag_var, ...) do { \
     static std::once_flag flag_var; \
     std::call_once(flag_var, [&]{ \
-        Logger::Logger::instance().level_method(FUNC_NAME, __VA_ARGS__); \
+        Logger::Logger::instance().level_method(__FILE__, FUNC_NAME, __LINE__, __VA_ARGS__); \
     }); \
 } while(0)
 
@@ -143,7 +143,7 @@
 #define LOG_ONCE_FUNCTION_STREAM_IMPL(level_method, flag_var, msg, container) do { \
     static std::once_flag flag_var; \
     std::call_once(flag_var, [&]{ \
-        Logger::Logger::instance().level_method(FUNC_NAME, msg, container); \
+        Logger::Logger::instance().level_method(__FILE__, FUNC_NAME, __LINE__, msg, container); \
     }); \
 } while(0)
 

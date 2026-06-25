@@ -40,10 +40,14 @@
     constexpr std::string_view ANSI_COLOR_RESET  = "\x1b[0m";
 #endif
 //--------------------------------------------------------------
+// Public
+//--------------------------------------------------------------
 Logger::Logger& Logger::Logger::instance(void) {
     static Logger instance;
     return instance;
 } // end Logger& Logger::instance(void)
+//--------------------------------------------------------------
+// Protected
 //--------------------------------------------------------------
 void Logger::Logger::level_message(const LogRecord& record) const {
     //--------------------------
@@ -55,7 +59,7 @@ void Logger::Logger::level_message(const LogRecord& record) const {
     #elif !LOGGER_HAS_STD_FORMAT
             fmt::print(fmt::fg(fmt::color::gray), "{}\n", record.formatted_message);
     #else
-            std::cout << ANSI_COLOR_GREY << record.formatted_message << ANSI_COLOR_RESET << '\n';
+            sync_line(std::cout, ANSI_COLOR_GREY, record.formatted_message, ANSI_COLOR_RESET);
     #endif
 #endif
             break;
@@ -66,7 +70,7 @@ void Logger::Logger::level_message(const LogRecord& record) const {
 #elif !LOGGER_HAS_STD_FORMAT
             fmt::print(fmt::fg(fmt::color::red), "{}\n", record.formatted_message);
 #else
-            std::cerr << ANSI_COLOR_RED << record.formatted_message << ANSI_COLOR_RESET << '\n';
+            sync_line(std::cerr, ANSI_COLOR_RED, record.formatted_message, ANSI_COLOR_RESET);
 #endif
             logs(record);
             break;
@@ -77,7 +81,7 @@ void Logger::Logger::level_message(const LogRecord& record) const {
 #elif !LOGGER_HAS_STD_FORMAT
             fmt::print(fmt::fg(fmt::color::yellow), "{}\n", record.formatted_message);
 #else
-            std::cerr << ANSI_COLOR_YELLOW << record.formatted_message << ANSI_COLOR_RESET << '\n';
+            sync_line(std::cerr, ANSI_COLOR_YELLOW, record.formatted_message, ANSI_COLOR_RESET);
 #endif
             logs(record);
             break;
@@ -87,6 +91,20 @@ void Logger::Logger::level_message(const LogRecord& record) const {
             break;
     } // end switch(level)
 }// end void Logger::Logger::level_message(const LogRecord& record) const
+//--------------------------------------------------------------
+void Logger::Logger::sync_line(std::ostream& stream, std::string_view prefix, std::string_view message, std::string_view suffix) const {
+    //--------------------------
+    thread_local std::string _line;
+    _line.clear();
+    _line.reserve(prefix.size() + message.size() + suffix.size() + 1UL);
+    _line.append(prefix);
+    _line.append(message);
+    _line.append(suffix);
+    _line.push_back('\n');
+    //--------------------------
+    stream << _line;
+    //--------------------------
+}// end void Logger::Logger::sync_line(std::ostream& stream, ...)
 //--------------------------------------------------------------
 constexpr std::string_view Logger::Logger::level_print(const LogLevel& level) const {
     //--------------------------
@@ -135,39 +153,50 @@ std::string Logger::Logger::format_message(const LogLevel& level, std::string_vi
     //--------------------------
 }// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
-std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const {
+std::string Logger::Logger::format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const {
     //--------------------------
     const std::string_view _function = format_function_name(function_name);
+    const std::string_view _file = format_file_name(file);
     //--------------------------
     std::string_view _timestamp;
     TimeStamp::format_timestamp(now, _timestamp);
     //--------------------------
 #if LOGGER_HAS_STD_FORMAT
-    return std::format("{}{}[{}]: {}", _timestamp, level_print(level), _function, message);
+    return std::format("{}{}[{}::{}:{}]: {}", _timestamp, level_print(level), _file, _function, line, message);
 #else
-    return fmt::format(FMT_COMPILE("{}{}[{}]: {}"), _timestamp, level_print(level), _function, message);
+    return fmt::format(FMT_COMPILE("{}{}[{}::{}:{}]: {}"), _timestamp, level_print(level), _file, _function, line, message);
 #endif
     //--------------------------
-}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view function_name, std::string_view message, const std::chrono::system_clock::time_point& now) const
+}// end std::string Logger::Logger::format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const
 //--------------------------------------------------------------
 void Logger::Logger::log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const {
     //--------------------------
     std::ofstream _log_file(filename.data(), std::ios_base::app);
     //--------------------------
-    if (_log_file.is_open()) {
-        if (!_log_file.tellp()) { // Check if the file is empty
-            //--------------------------
-            if (now.has_value()) { // Only format time if provided
-                //--------------------------
-                std::string_view _timestamp;
-                TimeStamp::format_timestamp(now.value(), _timestamp);
-                _log_file << "Log file created at: " << _timestamp << '\n';
-            }// end if (now)
-        } // end if (!_log_file.tellp())
+    if (!_log_file.is_open()) {
+        return;
+    }// end if (!_log_file.is_open())
+    //--------------------------
+    std::string _line;
+    //--------------------------
+    if (!_log_file.tellp() and now.has_value()) { // empty file: prepend the one-time header
         //--------------------------
-        _log_file << message << '\n';
+        std::string_view _timestamp;
+        TimeStamp::format_timestamp(now.value(), _timestamp);
         //--------------------------
-    }// end if (_log_file.is_open())
+        _line.reserve(21UL + _timestamp.size() + message.size() + 2UL);
+        _line.append("Log file created at: ");
+        _line.append(_timestamp);
+        _line.push_back('\n');
+        //--------------------------
+    } else {
+        _line.reserve(message.size() + 1UL);
+    } // end if (!_log_file.tellp() and now.has_value())
+    //--------------------------
+    _line.append(message);
+    _line.push_back('\n');
+    //--------------------------
+    _log_file.write(_line.data(), static_cast<std::streamsize>(_line.size()));
     //--------------------------
 }// end void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
@@ -179,13 +208,21 @@ constexpr std::string_view Logger::Logger::format_function_name(std::string_view
     //--------------------------
 }// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
 //--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::format_file_name(std::string_view file_name) const {
+    //--------------------------
+    // Strip the directory path and return only the base file name (handles both '/' and '\\')
+    const size_t _pos = file_name.find_last_of("/\\");
+    return (_pos != std::string_view::npos) ? file_name.substr(_pos + 1) : file_name;
+    //--------------------------
+}// end std::string Logger::Logger::format_file_name(std::string_view file_name) const
+//--------------------------------------------------------------
 void Logger::Logger::print_file(std::string_view message) const {
 #if LOGGER_HAS_STD_PRINT
     std::println("{}", message);
 #elif !LOGGER_HAS_STD_FORMAT
     fmt::print("{}\n", message);
 #else
-    std::cout << message << std::endl;
+    sync_line(std::cout, std::string_view{}, message, std::string_view{});
 #endif
 }// end void Logger::Logger::print_file(std::string_view message) const
 //--------------------------------------------------------------

@@ -17,7 +17,7 @@ struct sqlite3;
 struct sqlite3_stmt;
 //--------------------------
 extern "C" {
-    int sqlite3_close(sqlite3*);
+    int sqlite3_close_v2(sqlite3*);
 }// end extern "C"
 //--------------------------------------------------------------
 namespace Logger {
@@ -50,6 +50,8 @@ namespace Logger {
                 void operator()(sqlite3_stmt* stmt) const;
             };// end struct SQLiteStmtDeleter
             //--------------------------
+            std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> prepare_insert(void) const;
+            //--------------------------
             struct Cleanup {
                 //--------------------------
                 Cleanup(void) = default;
@@ -69,8 +71,7 @@ namespace Logger {
             SQLogger(SQLogger&&)                    = delete;
             SQLogger& operator=(SQLogger&&)         = delete;
             //--------------------------
-            std::unique_ptr<sqlite3, decltype(&sqlite3_close)> m_db;
-            std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> m_insertStmt;
+            std::unique_ptr<sqlite3, decltype(&sqlite3_close_v2)> m_db;
             //--------------------------
             const bool m_initialized;
         //--------------------------------------------------------------
