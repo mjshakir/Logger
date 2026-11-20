@@ -2,6 +2,7 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -30,13 +31,25 @@ namespace Logger {
         //--------------------------------------------------------------
         public:
             //--------------------------------------------------------------
-            static SQLogger& instance(void);
+            // A database of its own: opened once here at database_path, closed in the destructor.
+            // Made by a LogSession, which owns it; there is no instance() any more.
+            explicit SQLogger(std::string_view database_path);
+            ~SQLogger(void);
             //--------------------------
-            bool log(const LogRecord& record) const;
+            SQLogger(const SQLogger&)               = delete;
+            SQLogger& operator=(const SQLogger&)    = delete;
+            SQLogger(SQLogger&&)                    = delete;
+            SQLogger& operator=(SQLogger&&)         = delete;
+            //--------------------------
+            // True when the database is open and the table is there: a row can be stored.
+            bool opened(void) const noexcept;
+            //--------------------------
+            // run_id 1 or more is stored in the row's run_id column; 0 or less stores NULL.
+            bool log(const LogRecord& record, std::int64_t run_id) const;
             //--------------------------------------------------------------
         protected:
             //--------------------------------------------------------------
-            bool initialize(void);
+            bool initialize(std::string_view database_path);
             //--------------------------
             std::string pragma_name(std::string_view table_name) const;
             //--------------------------
@@ -44,7 +57,7 @@ namespace Logger {
             //--------------------------
             constexpr std::string_view create_table_sql(void) const;
             //--------------------------
-            bool insert_stmt(std::string_view time, const LogRecord& record) const;
+            bool insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const;
             //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
@@ -63,14 +76,6 @@ namespace Logger {
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
-            SQLogger(void);
-            ~SQLogger(void);
-            //--------------------------
-            SQLogger(const SQLogger&)               = delete;
-            SQLogger& operator=(const SQLogger&)    = delete;
-            SQLogger(SQLogger&&)                    = delete;
-            SQLogger& operator=(SQLogger&&)         = delete;
-            //--------------------------
             std::unique_ptr<sqlite3, decltype(&sqlite3_close_v2)> m_db;
             //--------------------------
             const bool m_initialized;

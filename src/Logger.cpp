@@ -3,6 +3,7 @@
 //--------------------------------------------------------------
 #include "Logger.hpp"
 //--------------------------------------------------------------
+#include "LogSession.hpp"
 #include "TimeStamp.hpp"
 //--------------------------------------------------------------
 // Standard cpp library
@@ -23,12 +24,6 @@
 //--------------------------------------------------------------
 #if LOGGER_HAS_STD_PRINT
     #include <print>
-#endif
-//--------------------------------------------------------------
-// User Defined library
-//--------------------------------------------------------------
-#if HAS_LOGGER_SQL == 1
-    #include "SQLogger.hpp"
 #endif
 //--------------------------------------------------------------
 // Definitions
@@ -88,6 +83,7 @@ void Logger::Logger::level_message(const LogRecord& record) const {
         case LogLevel::INFO:
         default:
             print_file(record.formatted_message);
+            logs(record);
             break;
     } // end switch(level)
 }// end void Logger::Logger::level_message(const LogRecord& record) const
@@ -200,13 +196,90 @@ void Logger::Logger::log_file(std::string_view filename, std::string_view messag
     //--------------------------
 }// end void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now) const
 //--------------------------------------------------------------
+// The opening partner of the bracket that ends `text`, found by depth from the right; 0 when there is none.
+constexpr std::size_t Logger::Logger::opened(std::string_view text, const char open, const char close) const {
+    //--------------------------
+    std::size_t _depth = 0;
+    for (std::size_t _left = text.size(); _left > 0; --_left) {
+        const char _c = text[_left - 1];
+        _depth += (_c == close) ? 1 : 0;
+        if (_c == open) {
+            --_depth;
+            if (_depth == 0) {
+                return _left - 1;
+            }// end if (_depth == 0)
+        }// end if (_c == open)
+    }// end for (_left)
+    return 0;
+    //--------------------------
+}// end constexpr std::size_t Logger::Logger::opened(std::string_view text, const char open, const char close) const
+//--------------------------------------------------------------
+constexpr std::string_view Logger::Logger::trimmed(std::string_view text) const {
+    //--------------------------
+    while (!text.empty() and text.back() == ' ') {
+        text.remove_suffix(1);
+    }// end while (!text.empty() and text.back() == ' ')
+    return text;
+    //--------------------------
+}// end constexpr std::string_view Logger::Logger::trimmed(std::string_view text) const
+//--------------------------------------------------------------
+// The operator that ends `text` ("operator>", "operator()", "operator new") whole, or an empty view when the
+// name is not an operator's; its symbol may hold "<", ">" and "::"-free punctuation that a cut by depth would take
+// for brackets.
+constexpr std::string_view Logger::Logger::operator_name(std::string_view text) const {
+    //--------------------------
+    const std::size_t _pos = text.rfind("operator");
+    if (_pos == std::string_view::npos) {
+        return std::string_view{};
+    }// end if (no operator)
+    const bool _word = _pos > 0 and (text[_pos - 1] == '_' or (text[_pos - 1] >= '0' and text[_pos - 1] <= '9') or
+                                     (text[_pos - 1] >= 'a' and text[_pos - 1] <= 'z') or
+                                     (text[_pos - 1] >= 'A' and text[_pos - 1] <= 'Z'));
+    const char _next = (_pos + 8 < text.size()) ? text[_pos + 8] : ' ';
+    const bool _longer = _next == '_' or (_next >= '0' and _next <= '9') or (_next >= 'a' and _next <= 'z') or
+                         (_next >= 'A' and _next <= 'Z');
+    return (_word or _longer) ? std::string_view{} : text.substr(_pos);
+    //--------------------------
+}// end constexpr std::string_view Logger::Logger::operator_name(std::string_view text) const
+//--------------------------------------------------------------
 constexpr std::string_view Logger::Logger::format_function_name(std::string_view function_name) const {
     //--------------------------
-    // Find the last "::" occurrence and return only the function name
-    const size_t _pos = function_name.rfind("::");
-    return (_pos != std::string_view::npos) ? function_name.substr(_pos + 2) : function_name;
+    // GCC and Clang give the whole signature: the return type, the qualified name, the parameters, the
+    // qualifiers and a "[with T = ...]" or "[T = ...]" note, and the parameters and the note hold "::" too.
+    // So the note, a trailing return type, a GCC lambda's "<lambda(int)>", the parameters and the function's own
+    // template arguments are cut by depth first, and only then is the last "::" found. MSVC's __FUNCTION__ is the
+    // qualified name alone and passes through.
+    std::string_view _name = trimmed(function_name);
+    if (!_name.empty() and _name.back() == ']') {
+        _name = trimmed(_name.substr(0, opened(_name, '[', ']')));
+    }// end if (a template note ends it)
+    const std::size_t _arrow = _name.rfind(") -> ");
+    if (_arrow != std::string_view::npos) {
+        _name = _name.substr(0, _arrow + 1);
+    }// end if (a trailing return type)
+    if (!_name.empty() and _name.back() == '>') {
+        _name = _name.substr(0, opened(_name, '<', '>'));
+    }// end if (a GCC lambda ends it)
+    while (_name.ends_with("::")) {
+        _name.remove_suffix(2);
+    }// end while (_name.ends_with("::"))
+    const std::size_t _close = _name.rfind(')');
+    if (_close != std::string_view::npos) {
+        _name = _name.substr(0, opened(_name.substr(0, _close + 1), '(', ')'));
+    }// end if (a parameter list)
+    const std::string_view _operator = operator_name(_name);
+    if (!_operator.empty()) {
+        return _operator;
+    }// end if (an operator)
+    if (!_name.empty() and _name.back() == '>') {
+        _name = _name.substr(0, opened(_name, '<', '>'));
+    }// end if (the function's own template arguments)
+    const std::size_t _pos = _name.rfind("::");
+    _name = (_pos != std::string_view::npos) ? _name.substr(_pos + 2) : _name;
+    const std::size_t _space = _name.rfind(' ');
+    return (_space != std::string_view::npos) ? _name.substr(_space + 1) : _name;
     //--------------------------
-}// end std::string Logger::Logger::format_function_name(std::string_view function_name) const
+}// end constexpr std::string_view Logger::Logger::format_function_name(std::string_view function_name) const
 //--------------------------------------------------------------
 constexpr std::string_view Logger::Logger::format_file_name(std::string_view file_name) const {
     //--------------------------
@@ -228,16 +301,15 @@ void Logger::Logger::print_file(std::string_view message) const {
 //--------------------------------------------------------------
 void Logger::Logger::logs(const LogRecord& record) const {
     //--------------------------
-#if HAS_LOGGER_SQL == 1
-    static SQLogger& s_sq_logger = SQLogger::instance();
+    // The text lines carry the file's and the function's short names; so do the rows.
+    const LogRecord _row{record.level, record.message, record.formatted_message, record.now,
+                         record.file.has_value() ? std::optional<std::string_view>{format_file_name(*record.file)} : std::nullopt,
+                         record.function_name.has_value() ? std::optional<std::string_view>{format_function_name(*record.function_name)} : std::nullopt,
+                         record.line};
     //--------------------------
-    const bool _logged = s_sq_logger.log(record);
-    if(!_logged) {
-        log_file(level_log(record.level), record.formatted_message, record.now);
-    }// end if(!s_sq_logger.log(message, now))
+    // The live LogSession, if any, stores the row. With none alive the console has the line
+    // already and nothing else is written: no database and no file is opened.
+    LogSession::store(_row);
     //--------------------------
-#else
-    log_file(level_log(record.level), record.formatted_message, record.now);
-#endif
 }// end void Logger::Logger::logs(const LogRecord& record) const
 //--------------------------------------------------------------

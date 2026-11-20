@@ -69,6 +69,8 @@ namespace Logger {
             //--------------------------------------------------------------
         public:
             //--------------------------------------------------------------
+            // Where the messages are stored is not set here: see LogSession. With no LogSession alive a
+            // message goes to the console only, and no file and no database is opened.
             static Logger& instance(void);
             //--------------------------------------------------------------
             // Logging functions
@@ -212,6 +214,12 @@ namespace Logger {
             std::string format_message(const LogLevel& level, std::string_view file, std::string_view function_name, std::size_t line, std::string_view message, const std::chrono::system_clock::time_point& now) const;
             //--------------------------
             void log_file(std::string_view filename, std::string_view message, const std::optional<std::chrono::system_clock::time_point>& now = std::nullopt) const;
+            //--------------------------
+            constexpr std::size_t opened(std::string_view text, const char open, const char close) const;
+            //--------------------------
+            constexpr std::string_view trimmed(std::string_view text) const;
+            //--------------------------
+            constexpr std::string_view operator_name(std::string_view text) const;
             //--------------------------
             constexpr std::string_view format_function_name(std::string_view function_name) const;
             //--------------------------

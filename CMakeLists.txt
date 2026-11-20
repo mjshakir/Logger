@@ -234,6 +234,7 @@ set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/LoggerAPI.cpp
     ${LOGGER_SOURCE_DIR}/Log.cpp
     ${LOGGER_SOURCE_DIR}/LogRecord.cpp
+    ${LOGGER_SOURCE_DIR}/LogSession.cpp
     ${LOGGER_SOURCE_DIR}/LogLevel.cpp
     ${LOGGER_SOURCE_DIR}/TimeStamp.cpp
 )

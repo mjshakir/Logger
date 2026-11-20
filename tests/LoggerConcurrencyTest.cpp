@@ -9,11 +9,13 @@
 // primary concurrency check (pair with an ASan build for memory/UB).
 //--------------------------------------------------------------
 #include "Logger.hpp"
+#include "LogSession.hpp"
 
 #include <gtest/gtest.h>
 
 #include <cstdio>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -125,12 +127,22 @@ namespace {
     class LoggerConcurrency : public ::testing::TestWithParam<int> {
         protected:
             static void SetUpTestSuite(void) {
-                // Start from a clean DB before the singleton SQLogger opens it on first log.
+                // Start from a clean DB before the session opens it: with no LogSession alive a
+                // message is stored nowhere.
                 std::remove("logs.db");
                 std::remove("logs.db-wal");
                 std::remove("logs.db-shm");
+                s_session = std::make_unique<Logger::LogSession>();
             }
+            //--------------------------
+            static void TearDownTestSuite(void) {
+                s_session.reset();
+            }
+            //--------------------------
+            static std::unique_ptr<Logger::LogSession> s_session;
     };
+    //--------------------------
+    std::unique_ptr<Logger::LogSession> LoggerConcurrency::s_session;
     //--------------------------
     TEST_P(LoggerConcurrency, NoTornNoLossNoDuplication) {
         const int threads = GetParam();
@@ -149,7 +161,7 @@ namespace {
         EXPECT_EQ(out.lines_without_marker + err.lines_without_marker, 0) << "lines without a token (torn lines)";
         //--------------------------
 #if HAS_LOGGER_SQL == 1
-        const long expected_db = static_cast<long>(threads) * N * 2; // error + warning
+        const long expected_db = static_cast<long>(threads) * N * 3; // error + warning + info
         EXPECT_EQ(db_count(round, false), expected_db) << "SQLite row count (lost or duplicated rows)";
         EXPECT_EQ(db_count(round, true),  expected_db) << "SQLite distinct messages (duplicated rows)";
 #endif

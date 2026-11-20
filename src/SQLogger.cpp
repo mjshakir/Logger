@@ -18,12 +18,20 @@
 //--------------------------------------------------------------
 // Public
 //--------------------------------------------------------------
-Logger::SQLogger& Logger::SQLogger::instance(void) {
-    static SQLogger instance;
-    return instance;
-}// end Logger::SQLogger& Logger::SQLogger::instance(void)
+Logger::SQLogger::SQLogger(std::string_view database_path) :  m_db(nullptr, &sqlite3_close_v2),
+                                    m_initialized(initialize(database_path)) {
+    //--------------------------
+}// end Logger::SQLogger::SQLogger(std::string_view database_path)
 //--------------------------------------------------------------
-bool Logger::SQLogger::log(const LogRecord& record) const {
+Logger::SQLogger::~SQLogger(void) = default;
+//--------------------------------------------------------------
+bool Logger::SQLogger::opened(void) const noexcept {
+    //--------------------------
+    return m_initialized;
+    //--------------------------
+}// end bool Logger::SQLogger::opened(void) const noexcept
+//--------------------------------------------------------------
+bool Logger::SQLogger::log(const LogRecord& record, std::int64_t run_id) const {
     //--------------------------
     if (!m_initialized) {
         std::cerr << "SQLogger was not initialized properly." << std::endl;
@@ -33,18 +41,20 @@ bool Logger::SQLogger::log(const LogRecord& record) const {
     std::string_view time;
     TimeStamp::format_timestamp_default(record.now, time);
     //--------------------------
-    return insert_stmt(time, record);
+    return insert_stmt(time, record, run_id);
     //--------------------------
-}// end bool Logger::SQLogger::log(const LogRecord& record) const
+}// end bool Logger::SQLogger::log(const LogRecord& record, std::int64_t run_id) const
 //--------------------------------------------------------------
 // Protected
 //--------------------------------------------------------------
-bool Logger::SQLogger::initialize(void) {
+bool Logger::SQLogger::initialize(std::string_view database_path) {
+    //--------------------------
+    const std::string _database_path(database_path);
     //--------------------------
     // Use a temporary raw pointer because sqlite3_open requires a sqlite3**
     sqlite3* db_raw = nullptr;
     //--------------------------
-    if (sqlite3_open("logs.db", &db_raw) != SQLITE_OK) {
+    if (sqlite3_open(_database_path.c_str(), &db_raw) != SQLITE_OK) {
         //--------------------------
         std::cerr << "Error opening SQLite database: " << sqlite3_errmsg(db_raw) << std::endl;
         //--------------------------
@@ -56,7 +66,7 @@ bool Logger::SQLogger::initialize(void) {
         //--------------------------
         return false;
         //--------------------------
-    }// end if (sqlite3_open("logs.db", &db_raw) != SQLITE_OK)
+    }// end if (sqlite3_open(_database_path.c_str(), &db_raw) != SQLITE_OK)
     //--------------------------
     m_db.reset(db_raw);
     //--------------------------
@@ -74,6 +84,14 @@ bool Logger::SQLogger::initialize(void) {
     if (sqlite3_exec(m_db.get(), "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr) != SQLITE_OK) {
         std::cerr << "Error setting synchronous: " << sqlite3_errmsg(m_db.get()) << std::endl;
     }// end if (sqlite3_exec(m_db.get(), "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr) != SQLITE_OK)
+    //--------------------------
+    // WAL with synchronous=NORMAL: a commit does not sync, so a row costs a write and no fdatasync.
+    // The file stays consistent after a crash of the program; a power cut may lose the last rows,
+    // never the database. The checkpoint is the part that syncs (about 125 ms on an SD card): it
+    // runs every 8192 pages here instead of every 1000, so a run of a few rows never reaches it.
+    if (sqlite3_exec(m_db.get(), "PRAGMA wal_autocheckpoint=8192;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+        std::cerr << "Error setting wal_autocheckpoint: " << sqlite3_errmsg(m_db.get()) << std::endl;
+    }// end if (sqlite3_exec(m_db.get(), "PRAGMA wal_autocheckpoint=8192;", nullptr, nullptr, nullptr) != SQLITE_OK)
     //--------------------------
     if (sqlite3_exec(m_db.get(), create_table_sql().data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
         std::cerr << "Error creating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
@@ -101,9 +119,16 @@ bool Logger::SQLogger::initialize(void) {
         }// end if (sqlite3_exec(...))
     }// end if (!has_column(m_db.get(), "logs", "file_name"))
     //--------------------------
+    if (!has_column(m_db.get(), "logs", "run_id")) {
+        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN run_id INTEGER;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_exec(...))
+    }// end if (!has_column(m_db.get(), "logs", "run_id"))
+    //--------------------------
     return true;
     //--------------------------
-}// end void Logger::SQLogger::initialize(void)
+}// end void Logger::SQLogger::initialize(std::string_view database_path)
 //--------------------------------------------------------------
 std::string Logger::SQLogger::pragma_name(std::string_view table_name) const {
     //--------------------------
@@ -152,16 +177,19 @@ constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
             function_name TEXT,
             file_name TEXT,
             line_number INTEGER,
-            message TEXT NOT NULL
+            message TEXT NOT NULL,
+            run_id INTEGER
         );
     )";
     //--------------------------
 }// end constexpr std::string_view Logger::SQLogger::create_table_sql(void)
 //--------------------------------------------------------------
-bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const {
+bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const {
     //--------------------------
-    thread_local std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> tls_stmt = prepare_insert();
-    sqlite3_stmt* stmt = tls_stmt.get();
+    // The statement lives for this one message: it is finalized before the function returns, so a
+    // closed session leaves nothing behind in any thread.
+    const std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> owned = prepare_insert();
+    sqlite3_stmt* stmt = owned.get();
     if (!stmt) {
         std::cerr << "Insert statement is not initialized." << std::endl;
         return false;
@@ -226,6 +254,18 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
         }// end if (sqlite3_bind_null(stmt, 6) != SQLITE_OK)
     }// end if (record.file.has_value() and !record.file->empty())
     //--------------------------
+    if (run_id > 0) {
+        if (sqlite3_bind_int64(stmt, 7, static_cast<sqlite3_int64>(run_id)) != SQLITE_OK) {
+            std::cerr << "Error binding run id: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_int64(stmt, 7, static_cast<sqlite3_int64>(run_id)) != SQLITE_OK)
+    } else {
+        if (sqlite3_bind_null(stmt, 7) != SQLITE_OK) {
+            std::cerr << "Error binding run id: " << sqlite3_errmsg(m_db.get()) << std::endl;
+            return false;
+        }// end if (sqlite3_bind_null(stmt, 7) != SQLITE_OK)
+    }// end if (run_id > 0)
+    //--------------------------
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         std::cerr << "Error executing insert statement: " << sqlite3_errmsg(m_db.get()) << std::endl;
@@ -234,7 +274,7 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
     //--------------------------
     return true;
     //-----------------------------
-}// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record) const
+}// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
     //--------------------------
@@ -263,7 +303,7 @@ std::unique_ptr<sqlite3_stmt, Logger::SQLogger::SQLiteStmtDeleter> Logger::SQLog
         return StmtPtr(nullptr);
     }// end if (!m_initialized or !m_db)
     //--------------------------
-    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message, line_number, file_name) VALUES (?, ?, ?, ?, ?, ?);";
+    constexpr std::string_view insert_sql = "INSERT INTO logs (timestamp, log_level, function_name, message, line_number, file_name, run_id) VALUES (?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     //--------------------------
     if (sqlite3_prepare_v2(m_db.get(), insert_sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -274,13 +314,3 @@ std::unique_ptr<sqlite3_stmt, Logger::SQLogger::SQLiteStmtDeleter> Logger::SQLog
     return StmtPtr(stmt);
     //--------------------------
 }// end std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> Logger::SQLogger::prepare_insert(void) const
-//--------------------------------------------------------------
-// Private
-//--------------------------------------------------------------
-Logger::SQLogger::SQLogger(void) :  m_db(nullptr, &sqlite3_close_v2),
-                                    m_initialized(initialize()) {
-    //--------------------------
-}// end Logger::SQLogger::SQLogger(void)
-//--------------------------------------------------------------
-Logger::SQLogger::~SQLogger(void) = default;
-//--------------------------------------------------------------
