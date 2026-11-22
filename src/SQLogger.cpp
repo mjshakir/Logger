@@ -51,10 +51,15 @@ bool Logger::SQLogger::initialize(std::string_view database_path) {
     //--------------------------
     const std::string _database_path(database_path);
     //--------------------------
-    // Use a temporary raw pointer because sqlite3_open requires a sqlite3**
+    if (!sqlite3_threadsafe()) {
+        std::cerr << "Error opening SQLite database: the SQLite library has no thread support" << std::endl;
+        m_db.reset(nullptr);
+        return false;
+    }// end if (!sqlite3_threadsafe())
+    //--------------------------
     sqlite3* db_raw = nullptr;
     //--------------------------
-    if (sqlite3_open(_database_path.c_str(), &db_raw) != SQLITE_OK) {
+    if (sqlite3_open_v2(_database_path.c_str(), &db_raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK) {
         //--------------------------
         std::cerr << "Error opening SQLite database: " << sqlite3_errmsg(db_raw) << std::endl;
         //--------------------------
@@ -66,7 +71,7 @@ bool Logger::SQLogger::initialize(std::string_view database_path) {
         //--------------------------
         return false;
         //--------------------------
-    }// end if (sqlite3_open(_database_path.c_str(), &db_raw) != SQLITE_OK)
+    }// end if (sqlite3_open_v2(_database_path.c_str(), &db_raw, ...) != SQLITE_OK)
     //--------------------------
     m_db.reset(db_raw);
     //--------------------------
