@@ -16,10 +16,6 @@
 struct sqlite3;
 //--------------------------
 struct sqlite3_stmt;
-//--------------------------
-extern "C" {
-    int sqlite3_close_v2(sqlite3*);
-}// end extern "C"
 //--------------------------------------------------------------
 namespace Logger {
     //--------------------------------------------------------------
@@ -59,6 +55,10 @@ namespace Logger {
             //--------------------------
             bool insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const;
             //--------------------------
+            struct SQLiteDbDeleter {
+                void operator()(sqlite3* db) const;
+            };// end struct SQLiteDbDeleter
+            //--------------------------
             struct SQLiteStmtDeleter {
                 void operator()(sqlite3_stmt* stmt) const;
             };// end struct SQLiteStmtDeleter
@@ -76,7 +76,7 @@ namespace Logger {
             //--------------------------------------------------------------
         private:
             //--------------------------------------------------------------
-            std::unique_ptr<sqlite3, decltype(&sqlite3_close_v2)> m_db;
+            std::unique_ptr<sqlite3, SQLiteDbDeleter> m_db;
             //--------------------------
             const bool m_initialized;
         //--------------------------------------------------------------
