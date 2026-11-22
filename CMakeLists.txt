@@ -212,6 +212,9 @@ endif()
 #------------------------------------------------------------------------------------------
 # Find SQLite3
 find_package(SQLite3 QUIET)
+if (SQLite3_FOUND AND NOT TARGET SQLite3::SQLite3)
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif()
 if (SQLite3_FOUND AND BUILD_LOGGER_SQL)
     set(BUILD_LOGGER_SQL ON)
     set(HAS_LOGGER_SQL 1)
@@ -283,7 +286,7 @@ if(LOGGER_STANDALONE_PROJECT AND TARGET common_options)
     )
 endif()
 if(BUILD_LOGGER_SQL)
-    target_link_libraries(${PROJECT_NAME} PRIVATE SQLite::SQLite3)
+    target_link_libraries(${PROJECT_NAME} PRIVATE SQLite3::SQLite3)
 endif()
 #------------------------------------------------------------------------------------------
 if (NOT LOGGER_HAS_STD_FORMAT)
