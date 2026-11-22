@@ -18,7 +18,7 @@
 //--------------------------------------------------------------
 // Public
 //--------------------------------------------------------------
-Logger::SQLogger::SQLogger(std::string_view database_path) :  m_db(nullptr, &sqlite3_close_v2),
+Logger::SQLogger::SQLogger(std::string_view database_path) :  m_db(nullptr),
                                     m_initialized(initialize(database_path)) {
     //--------------------------
 }// end Logger::SQLogger::SQLogger(std::string_view database_path)
@@ -275,6 +275,12 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
     return true;
     //-----------------------------
 }// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const
+//--------------------------------------------------------------
+void Logger::SQLogger::SQLiteDbDeleter::operator()(sqlite3* db) const {
+    //--------------------------
+    sqlite3_close_v2(db);
+    //--------------------------
+}// end void Logger::SQLogger::SQLiteDbDeleter::operator()(sqlite3* db) const
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteStmtDeleter::operator()(sqlite3_stmt* stmt) const {
     //--------------------------
