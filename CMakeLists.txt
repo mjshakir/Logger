@@ -84,11 +84,9 @@ if(LOGGER_FORCE_FMT)
     set(LOGGER_HAS_STD_PRINT 0)
 endif()
 #---------------------------------------------
-if(LOGGER_HAS_STD_FORMAT)
-    set(CMAKE_CXX_STANDARD 23)
-else()
-    set(CMAKE_CXX_STANDARD 20)
-endif()
+# LogSession's bookkeeping answers with std::expected, which is C++23, whether the text formatting is
+# the standard library's or fmt's.
+set(CMAKE_CXX_STANDARD 23)
 #---------------------------------------------
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -225,26 +223,58 @@ else()
 endif()
 # add_compile_definitions(HAS_LOGGER_SQL)
 message(STATUS "HAS_LOGGER_SQL: ${HAS_LOGGER_SQL}")
+#---------------------------------------
+# How long a statement waits for another writer of the same database. The one place the number is
+# written; a project that embeds the library may set the cache entry before adding it.
+set(LOGGER_BUSY_WAIT_MILLISECONDS 3000 CACHE STRING
+    "How long a database statement waits for another writer, in milliseconds (a whole number above zero).")
+string(LENGTH "${LOGGER_BUSY_WAIT_MILLISECONDS}" LOGGER_BUSY_WAIT_DIGITS)
+if((NOT LOGGER_BUSY_WAIT_MILLISECONDS MATCHES "^[1-9][0-9]*$") OR (LOGGER_BUSY_WAIT_DIGITS GREATER 9))
+    message(FATAL_ERROR "LOGGER_BUSY_WAIT_MILLISECONDS is \"${LOGGER_BUSY_WAIT_MILLISECONDS}\": it must be "
+                        "a whole number of milliseconds, greater than zero and below a billion")
+endif()
+message(STATUS "LOGGER_BUSY_WAIT_MILLISECONDS: ${LOGGER_BUSY_WAIT_MILLISECONDS}")
 # Add HAS_LOGGER_SQL to compiler definitions
 #------------------------------------------------------------------------------------------
 # Define the source and include directories
 set(LOGGER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(LOGGER_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(LOGGER_SCHEMA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/schema)
+set(LOGGER_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 #------------------------------------------------------------------------------------------
 # Define the source files
 set(LOGGER_SOURCES
     ${LOGGER_SOURCE_DIR}/Logger.cpp
-    ${LOGGER_SOURCE_DIR}/LoggerAPI.cpp
-    ${LOGGER_SOURCE_DIR}/Log.cpp
     ${LOGGER_SOURCE_DIR}/LogRecord.cpp
-    ${LOGGER_SOURCE_DIR}/LogSession.cpp
-    ${LOGGER_SOURCE_DIR}/LogLevel.cpp
+    ${LOGGER_SOURCE_DIR}/LoggerTypes.cpp
+    ${LOGGER_SOURCE_DIR}/Session/LogSession.cpp
+    ${LOGGER_SOURCE_DIR}/Session/LogRun.cpp
+    ${LOGGER_SOURCE_DIR}/Session/UnfinishedRuns.cpp
+    ${LOGGER_SOURCE_DIR}/Session/LogStore.cpp
     ${LOGGER_SOURCE_DIR}/TimeStamp.cpp
 )
 #------------------------------------------------------------------------------------------
 # Add SQLogger.cpp only if BUILD_LOGGER_SQL is enabled
 if(BUILD_LOGGER_SQL)
     list(APPEND LOGGER_SOURCES ${LOGGER_SOURCE_DIR}/SQLogger.cpp)
+endif()
+#------------------------------------------------------------------------------------------
+# The generated header of the SQLite build: schema/logs.sql, embedded and applied by the library
+# when a session opens, and the busy wait. The schema is carried in a raw string, so it may not hold
+# )SQL" or an @.
+if(BUILD_LOGGER_SQL)
+    set(LOGGER_SCHEMA_FILE ${LOGGER_SCHEMA_DIR}/logs.sql)
+    # file(READ) tracks nothing, so name the schema to reconfigure when it changes.
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${LOGGER_SCHEMA_FILE})
+    file(READ ${LOGGER_SCHEMA_FILE} LOGGER_SCHEMA_TEXT)
+    string(FIND "${LOGGER_SCHEMA_TEXT}" ")SQL\"" LOGGER_SCHEMA_CLOSING)
+    string(FIND "${LOGGER_SCHEMA_TEXT}" "@" LOGGER_SCHEMA_AT)
+    if((NOT LOGGER_SCHEMA_CLOSING EQUAL -1) OR (NOT LOGGER_SCHEMA_AT EQUAL -1))
+        message(FATAL_ERROR "${LOGGER_SCHEMA_FILE} holds )SQL\" or an @, which the generated raw "
+                            "string literal cannot carry")
+    endif()
+    configure_file(${LOGGER_CMAKE_DIR}/LoggerBuild.hpp.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/generated/LoggerBuild.hpp @ONLY)
 endif()
 #------------------------------------------------------------------------------------------
 # Find and link fmt library if std::format is unavailable
@@ -278,8 +308,13 @@ target_compile_definitions(${PROJECT_NAME} PUBLIC
 target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_LOGGER_SQL=${HAS_LOGGER_SQL})
 target_include_directories(${PROJECT_NAME} PUBLIC 
     $<BUILD_INTERFACE:${LOGGER_INCLUDE_DIR}>
+    $<BUILD_INTERFACE:${LOGGER_INCLUDE_DIR}/Session>
     $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:include/Session>
 )
+if(BUILD_LOGGER_SQL)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+endif()
 if(LOGGER_STANDALONE_PROJECT AND TARGET common_options)
     target_compile_options(${PROJECT_NAME} PRIVATE
         $<TARGET_PROPERTY:common_options,INTERFACE_COMPILE_OPTIONS>

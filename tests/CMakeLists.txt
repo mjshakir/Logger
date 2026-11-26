@@ -46,3 +46,4 @@ function(create_test_target TARGET_NAME SOURCE_FILE)
 endfunction()
 
 create_test_target(${PROJECT_NAME}_concurrency_test ${CMAKE_CURRENT_LIST_DIR}/LoggerConcurrencyTest.cpp)
+create_test_target(${PROJECT_NAME}_session_test ${CMAKE_CURRENT_LIST_DIR}/Session/LogSessionTest.cpp)

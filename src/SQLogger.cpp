@@ -5,7 +5,9 @@
 //--------------------------------------------------------------
 // Standard cpp library
 //--------------------------------------------------------------
+#include <array>
 #include <iostream>
+#include <utility>
 //--------------------------------------------------------------
 // SQLite library
 //--------------------------------------------------------------
@@ -14,14 +16,16 @@
 // User Defined library
 //--------------------------------------------------------------
 #include "LogRecord.hpp"
+#include "LoggerBuild.hpp"
 #include "TimeStamp.hpp"
 //--------------------------------------------------------------
 // Public
 //--------------------------------------------------------------
-Logger::SQLogger::SQLogger(std::string_view database_path) :  m_db(nullptr),
+Logger::SQLogger::SQLogger(const std::string& database_path) :  m_db(nullptr),
+                                    m_control(nullptr),
                                     m_initialized(initialize(database_path)) {
     //--------------------------
-}// end Logger::SQLogger::SQLogger(std::string_view database_path)
+}// end Logger::SQLogger::SQLogger(const std::string& database_path)
 //--------------------------------------------------------------
 Logger::SQLogger::~SQLogger(void) = default;
 //--------------------------------------------------------------
@@ -31,7 +35,7 @@ bool Logger::SQLogger::opened(void) const noexcept {
     //--------------------------
 }// end bool Logger::SQLogger::opened(void) const noexcept
 //--------------------------------------------------------------
-bool Logger::SQLogger::log(const LogRecord& record, std::int64_t run_id) const {
+bool Logger::SQLogger::log(const LogRecord& record, std::optional<std::int64_t> run_id) const {
     //--------------------------
     if (!m_initialized) {
         std::cerr << "SQLogger was not initialized properly." << std::endl;
@@ -43,13 +47,21 @@ bool Logger::SQLogger::log(const LogRecord& record, std::int64_t run_id) const {
     //--------------------------
     return insert_stmt(time, record, run_id);
     //--------------------------
-}// end bool Logger::SQLogger::log(const LogRecord& record, std::int64_t run_id) const
+}// end bool Logger::SQLogger::log(const LogRecord& record, std::optional<std::int64_t> run_id) const
+//--------------------------------------------------------------
+std::expected<sqlite3*, Logger::LogError> Logger::SQLogger::control(void) const noexcept {
+    //--------------------------
+    if (!m_initialized or !m_control) {
+        return std::unexpected(LogError::NO_SESSION);
+    }// end if (!m_initialized or !m_control)
+    //--------------------------
+    return m_control.get();
+    //--------------------------
+}// end std::expected<sqlite3*, LogError> Logger::SQLogger::control(void) const noexcept
 //--------------------------------------------------------------
 // Protected
 //--------------------------------------------------------------
-bool Logger::SQLogger::initialize(std::string_view database_path) {
-    //--------------------------
-    const std::string _database_path(database_path);
+bool Logger::SQLogger::initialize(const std::string& database_path) {
     //--------------------------
     if (!sqlite3_threadsafe()) {
         std::cerr << "Error opening SQLite database: the SQLite library has no thread support" << std::endl;
@@ -59,7 +71,7 @@ bool Logger::SQLogger::initialize(std::string_view database_path) {
     //--------------------------
     sqlite3* db_raw = nullptr;
     //--------------------------
-    if (sqlite3_open_v2(_database_path.c_str(), &db_raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK) {
+    if (sqlite3_open_v2(database_path.c_str(), &db_raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr) != SQLITE_OK) {
         //--------------------------
         std::cerr << "Error opening SQLite database: " << sqlite3_errmsg(db_raw) << std::endl;
         //--------------------------
@@ -71,17 +83,17 @@ bool Logger::SQLogger::initialize(std::string_view database_path) {
         //--------------------------
         return false;
         //--------------------------
-    }// end if (sqlite3_open_v2(_database_path.c_str(), &db_raw, ...) != SQLITE_OK)
+    }// end if (sqlite3_open_v2(database_path.c_str(), &db_raw, ...) != SQLITE_OK)
     //--------------------------
     m_db.reset(db_raw);
     //--------------------------
-    // Cheap insurance: a single shared connection already serializes its own autocommit writes
-    // (each INSERT runs inside one mutex-held sqlite3_step), so this only matters if an external
-    // process opens logs.db concurrently. No retry loop is needed.
-    sqlite3_busy_timeout(m_db.get(), 3000);
+    // Set first: every statement below queues behind another program that makes the same file.
+    sqlite3_busy_timeout(m_db.get(), C_BUSY_WAIT_MILLISECONDS);
     //--------------------------
     // Optional: Improve performance by tweaking PRAGMA settings.
     //--------------------------
+    // SQLite answers BUSY at once, with no wait, when two programs switch a new file to WAL
+    // together; the one that loses prints this line and finds the file already switched.
     if (sqlite3_exec(m_db.get(), "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr) != SQLITE_OK) {
         std::cerr << "Error setting journal_mode: " << sqlite3_errmsg(m_db.get()) << std::endl;
     }// end if (sqlite3_exec(m_db.get(), "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr) != SQLITE_OK)
@@ -98,42 +110,90 @@ bool Logger::SQLogger::initialize(std::string_view database_path) {
         std::cerr << "Error setting wal_autocheckpoint: " << sqlite3_errmsg(m_db.get()) << std::endl;
     }// end if (sqlite3_exec(m_db.get(), "PRAGMA wal_autocheckpoint=8192;", nullptr, nullptr, nullptr) != SQLITE_OK)
     //--------------------------
-    if (sqlite3_exec(m_db.get(), create_table_sql().data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
-        std::cerr << "Error creating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
+    // The whole setup is one transaction: two programs that start together queue on its write lock
+    // under the busy wait, and the one that comes second finds the tables made.
+    if (sqlite3_exec(m_db.get(), "BEGIN IMMEDIATE;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+        std::cerr << "Error starting the setup: " << sqlite3_errmsg(m_db.get()) << std::endl;
         return false;
-    }// end if (sqlite3_exec(m_db.get(), create_table_sql().data(), nullptr, nullptr, nullptr) != SQLITE_OK)
+    }// end if (the setup transaction was refused)
     //--------------------------
-    if (!has_column(m_db.get(), "logs", "function_name")) {
-        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN function_name TEXT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
+    // A table made by an older library lacks the later columns: they are added, each once, before
+    // the schema, whose index names one of them.
+    // (column, statement that adds it)
+    const std::array<std::pair<std::string_view, std::string_view>, 4> _migrations{{
+        {"function_name", "ALTER TABLE logs ADD COLUMN function_name TEXT;"},
+        {"line_number", "ALTER TABLE logs ADD COLUMN line_number INTEGER;"},
+        {"file_name", "ALTER TABLE logs ADD COLUMN file_name TEXT;"},
+        {"run_id", "ALTER TABLE logs ADD COLUMN run_id INTEGER;"}}};
+    const bool _older = has_column(m_db.get(), "logs", "id");
+    bool       _setup = true;
+    for (const std::pair<std::string_view, std::string_view>& _migration : _migrations) {
+        if (_older and !has_column(m_db.get(), "logs", _migration.first) and !applied(_migration.second)) {
             std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_exec(...))
-    }// end if (!has_column(m_db.get(), "logs", "function_name"))
+            _setup = false;
+            break;
+        }// end if (the column is missing and could not be added)
+    }// end for (_migration)
     //--------------------------
-    if (!has_column(m_db.get(), "logs", "line_number")) {
-        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN line_number INTEGER;", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_exec(...))
-    }// end if (!has_column(m_db.get(), "logs", "line_number"))
+    if (_setup and !applied(C_SCHEMA)) {
+        std::cerr << "Error applying the schema: " << sqlite3_errmsg(m_db.get()) << std::endl;
+        _setup = false;
+    }// end if (the schema was refused)
     //--------------------------
-    if (!has_column(m_db.get(), "logs", "file_name")) {
-        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN file_name TEXT;", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_exec(...))
-    }// end if (!has_column(m_db.get(), "logs", "file_name"))
+    const int _end = sqlite3_exec(m_db.get(), _setup ? "COMMIT;" : "ROLLBACK;", nullptr, nullptr, nullptr);
+    if (!_setup) {
+        return false;
+    }// end if (the setup was refused: nothing of it stays)
     //--------------------------
-    if (!has_column(m_db.get(), "logs", "run_id")) {
-        if (sqlite3_exec(m_db.get(), "ALTER TABLE logs ADD COLUMN run_id INTEGER;", nullptr, nullptr, nullptr) != SQLITE_OK) {
-            std::cerr << "Error migrating logs table: " << sqlite3_errmsg(m_db.get()) << std::endl;
-            return false;
-        }// end if (sqlite3_exec(...))
-    }// end if (!has_column(m_db.get(), "logs", "run_id"))
+    if (_end != SQLITE_OK) {
+        std::cerr << "Error committing the setup: " << sqlite3_errmsg(m_db.get()) << std::endl;
+        (void)sqlite3_exec(m_db.get(), "ROLLBACK;", nullptr, nullptr, nullptr);
+        return false;
+    }// end if (the commit was refused)
+    //--------------------------
+    // The run's own connection: the run's end must not queue behind a message that is stuck in the
+    // store, so it has a connection that no message uses.
+    sqlite3* control_raw = nullptr;
+    if (sqlite3_open_v2(database_path.c_str(), &control_raw, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr) == SQLITE_OK) {
+        m_control.reset(control_raw);
+        sqlite3_busy_timeout(m_control.get(), C_BUSY_WAIT_MILLISECONDS);
+    } else {
+        // The messages still work; the run's bookkeeping answers NO_SESSION.
+        std::cerr << "Error opening the run's SQLite connection: " << sqlite3_errmsg(control_raw) << std::endl;
+        if (control_raw) {
+            sqlite3_close(control_raw);
+        }// end if (control_raw)
+    }// end if (the run's connection opened)
     //--------------------------
     return true;
     //--------------------------
-}// end void Logger::SQLogger::initialize(std::string_view database_path)
+}// end bool Logger::SQLogger::initialize(const std::string& database_path)
+//--------------------------------------------------------------
+bool Logger::SQLogger::applied(std::string_view sql) const noexcept {
+    //--------------------------
+    const char*       p_next = sql.data();
+    const char* const p_end  = sql.data() + sql.size();
+    //--------------------------
+    // Bounded by the text: every pass moves p_next on, or stops.
+    while (p_next < p_end) {
+        sqlite3_stmt* _raw  = nullptr;
+        const char*   p_tail = p_next;
+        const int     _prepared = sqlite3_prepare_v2(m_db.get(), p_next, static_cast<int>(p_end - p_next), &_raw, &p_tail);
+        const std::unique_ptr<sqlite3_stmt, SQLiteStmtDeleter> _statement(_raw);
+        if (_prepared != SQLITE_OK or p_tail <= p_next) {
+            return false;
+        }// end if (the statement was refused, or the text did not move on)
+        //--------------------------
+        // Text with no statement in it (a comment, a blank) gives no statement to step.
+        if (_statement and sqlite3_step(_statement.get()) != SQLITE_DONE) {
+            return false;
+        }// end if (the statement was refused)
+        p_next = p_tail;
+    }// end while (text is left)
+    //--------------------------
+    return true;
+    //--------------------------
+}// end bool Logger::SQLogger::applied(std::string_view sql) const noexcept
 //--------------------------------------------------------------
 std::string Logger::SQLogger::pragma_name(std::string_view table_name) const {
     //--------------------------
@@ -172,24 +232,7 @@ bool Logger::SQLogger::has_column(sqlite3* db, std::string_view table_name, std:
     //--------------------------
 }// end bool has_column(sqlite3* db, std::string_view table_name, std::string_view column_name)
 //--------------------------------------------------------------
-constexpr std::string_view Logger::SQLogger::create_table_sql(void) const {
-    //--------------------------
-    return R"(
-        CREATE TABLE IF NOT EXISTS logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
-            log_level  TEXT NOT NULL,
-            function_name TEXT,
-            file_name TEXT,
-            line_number INTEGER,
-            message TEXT NOT NULL,
-            run_id INTEGER
-        );
-    )";
-    //--------------------------
-}// end constexpr std::string_view Logger::SQLogger::create_table_sql(void)
-//--------------------------------------------------------------
-bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const {
+bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::optional<std::int64_t> run_id) const {
     //--------------------------
     // The statement lives for this one message: it is finalized before the function returns, so a
     // closed session leaves nothing behind in any thread.
@@ -259,8 +302,8 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
         }// end if (sqlite3_bind_null(stmt, 6) != SQLITE_OK)
     }// end if (record.file.has_value() and !record.file->empty())
     //--------------------------
-    if (run_id > 0) {
-        if (sqlite3_bind_int64(stmt, 7, static_cast<sqlite3_int64>(run_id)) != SQLITE_OK) {
+    if (run_id.has_value()) {
+        if (sqlite3_bind_int64(stmt, 7, static_cast<sqlite3_int64>(*run_id)) != SQLITE_OK) {
             std::cerr << "Error binding run id: " << sqlite3_errmsg(m_db.get()) << std::endl;
             return false;
         }// end if (sqlite3_bind_int64(stmt, 7, static_cast<sqlite3_int64>(run_id)) != SQLITE_OK)
@@ -269,7 +312,7 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
             std::cerr << "Error binding run id: " << sqlite3_errmsg(m_db.get()) << std::endl;
             return false;
         }// end if (sqlite3_bind_null(stmt, 7) != SQLITE_OK)
-    }// end if (run_id > 0)
+    }// end if (run_id.has_value())
     //--------------------------
     int rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -279,7 +322,7 @@ bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& recor
     //--------------------------
     return true;
     //-----------------------------
-}// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::int64_t run_id) const
+}// end bool Logger::SQLogger::insert_stmt(std::string_view time, const LogRecord& record, std::optional<std::int64_t> run_id) const
 //--------------------------------------------------------------
 void Logger::SQLogger::SQLiteDbDeleter::operator()(sqlite3* db) const {
     //--------------------------
